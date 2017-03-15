@@ -1,0 +1,166 @@
+/* line 6, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body * {
+  color: black;
+  font-size: 8pt;
+  position: relative;
+}
+/* line 11, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body h2, body h3, body h4, body h5 {
+  display: block;
+  margin-top: 14pt;
+  page-break-after: avoid;
+}
+/* line 16, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .clear {
+  clear: both;
+}
+/* line 19, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body table {
+  border-collapse: collapse;
+  cellspacing: 0;
+  cellpadding: 0;
+  empty-cells: show;
+  width: 100%;
+}
+/* line 26, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body table tr td {
+  border: 1pt solid #646464;
+  padding: 2pt 4pt;
+}
+/* line 30, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body table thead tr td {
+  font-size: 7pt;
+  font-weight: bold;
+}
+/* line 34, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body table thead {
+  display: table-header-group;
+}
+/* line 37, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body table.hr {
+  border-bottom: 1pt solid #646464;
+}
+/* line 40, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body section {
+  page-break-before: auto;
+  page-break-after: auto;
+}
+/* line 44, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .dontbreak {
+  page-break-before: auto;
+  page-break-inside: avoid;
+}
+/* line 63, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .page_break {
+  page-break-before: always;
+}
+/* line 66, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .barcode {
+  display: block;
+  height: 1cm;
+  width: 100%;
+}
+/* line 71, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body h1 {
+  font-size: 13pt;
+  display: block;
+  padding-bottom: 1cm;
+}
+/* line 77, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body table > .start_date, body table > .end_date, body table > .returning_date {
+  letter-spacing: -1pt;
+}
+/* line 80, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .date {
+  display: inline-block;
+  position: absolute;
+  top: 1.6cm;
+  right: 0;
+}
+/* line 86, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .parties {
+  margin-bottom: 1.5cm;
+}
+/* line 89, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .parties .customer {
+  display: block;
+  float: left;
+  width: 30%;
+}
+/* line 94, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .parties .inventory_pool {
+  display: block;
+  float: left;
+}
+/* line 99, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .parties .customer > span, body .parties .inventory_pool > span {
+  display: block;
+}
+/* line 101, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .parties .customer > label, body .parties .inventory_pool > label {
+  font-weight: bold;
+}
+/* line 104, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .purposes {
+  margin-top: 1.5cm;
+}
+/* line 107, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .purposes h2 {
+  display: block;
+  page-break-after: avoid;
+}
+/* line 110, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .purposes p {
+  display: block;
+  page-break-before: avoid;
+}
+/* line 114, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .terms_and_signature {
+  display: block;
+  margin-top: 1cm;
+  width: 100%;
+}
+/* line 119, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .terms_and_signature .terms {
+  width: 65%;
+}
+/* line 122, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/document.sass */
+body .terms_and_signature span {
+  font-weight: bold;
+  display: inline-block;
+  position: absolute;
+  right: 0.2cm;
+}
+
+/* line 2, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/value_list.sass */
+.value_list .date, .picking_list .date {
+  top: 0.2cm;
+}
+/* line 5, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/value_list.sass */
+.value_list .item_price, .value_list .total .value, .picking_list .item_price, .picking_list .total .value {
+  text-align: right;
+  white-space: nowrap;
+}
+/* line 9, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/value_list.sass */
+.value_list .quantity, .picking_list .quantity {
+  text-align: center;
+}
+/* line 12, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print/value_list.sass */
+.value_list .consecutive_number, .picking_list .consecutive_number {
+  white-space: nowrap;
+}
+
+@media only screen {
+  /* line 6, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print.sass */
+  body {
+    padding-top: 1em;
+    padding-bottom: 4em;
+    max-width: 50em;
+    margin: auto;
+  }
+  /* line 12, /Users/mkmit/src/work/LEIHS/leihs-v4/legacy/app/assets/stylesheets/print.sass */
+  body * {
+    font-size: 0.966em;
+    font-family: sans-serif;
+  }
+}
