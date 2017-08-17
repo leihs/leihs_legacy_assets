@@ -1,0 +1,1 @@
+<img class='{{if size}}max-width-{{>size}} max-height-{{>size}}{{/if}}' src='/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif'>

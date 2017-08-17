@@ -1,0 +1,6 @@
+<div class='emboss blue padding-inset-s'>
+  <p class='paragraph-s'>
+    <img class='margin-right-s max-width-micro' src='/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif'>
+    <strong>{{jed "Loading availability"/}}</strong>
+  </p>
+</div>
