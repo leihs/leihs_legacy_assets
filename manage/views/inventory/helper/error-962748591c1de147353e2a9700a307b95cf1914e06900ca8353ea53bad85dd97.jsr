@@ -1,3 +1,0 @@
-<div class='row emboss red text-align-center font-size-m padding-inset-s'>
-  <strong>{{>text}}</strong>
-</div>

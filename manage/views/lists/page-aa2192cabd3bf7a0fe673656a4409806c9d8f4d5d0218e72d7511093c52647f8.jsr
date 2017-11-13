@@ -1,5 +1,0 @@
-<span class='page' data-page='{{> ~page}}'>
-  {{for ~entries}}
-  <div class='line'></div>
-  {{/for}}
-</span>

@@ -1,3 +1,0 @@
-<div class='width-xl padding-inset-s'>
-  <p class='paragraph-s'>{{>content}}</p>
-</div>
