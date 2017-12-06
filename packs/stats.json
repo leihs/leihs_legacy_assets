@@ -3,7 +3,7 @@
   "warnings": [],
   "version": "3.8.1",
   "hash": "5188f3223ae221e365d4",
-  "time": 5456,
+  "time": 6374,
   "publicPath": "/assets/packs/",
   "assetsByChunkName": {
     "server_rendering": [
