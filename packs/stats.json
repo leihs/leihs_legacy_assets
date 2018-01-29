@@ -3,7 +3,7 @@
   "warnings": [],
   "version": "3.10.0",
   "hash": "16f961cd3c551c9bb436",
-  "time": 5851,
+  "time": 2127,
   "publicPath": "/assets/packs/",
   "assetsByChunkName": {
     "server_rendering": [
@@ -75,15 +75,15 @@
       "emitted": true
     },
     {
-      "name": "server_rendering-86107099542435758f44.js.gz",
-      "size": 45575,
+      "name": "application-dff055cb77e16927650a.js.gz",
+      "size": 45652,
       "chunks": [],
       "chunkNames": [],
       "emitted": true
     },
     {
-      "name": "application-dff055cb77e16927650a.js.gz",
-      "size": 45652,
+      "name": "server_rendering-86107099542435758f44.js.gz",
+      "size": 45575,
       "chunks": [],
       "chunkNames": [],
       "emitted": true
@@ -325,9 +325,9 @@
             1
           ],
           "assets": [],
-          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/create-react-class/factory.js",
-          "issuerId": 21,
-          "issuerName": "./node_modules/create-react-class/factory.js",
+          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/react/cjs/react.production.min.js",
+          "issuerId": 11,
+          "issuerName": "./node_modules/react/cjs/react.production.min.js",
           "failed": false,
           "errors": 0,
           "warnings": 0,
@@ -1286,9 +1286,9 @@
             1
           ],
           "assets": [],
-          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/babel-loader/lib/index.js??ref--0-0!/Users/ma/CODE/leihs/legacy/app/javascript/packs/application.js",
-          "issuerId": 46,
-          "issuerName": "./app/javascript/packs/application.js",
+          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/babel-loader/lib/index.js??ref--0-0!/Users/ma/CODE/leihs/legacy/app/javascript/packs/server_rendering.js",
+          "issuerId": 47,
+          "issuerName": "./app/javascript/packs/server_rendering.js",
           "failed": false,
           "errors": 0,
           "warnings": 0,
@@ -2528,9 +2528,9 @@
             1
           ],
           "assets": [],
-          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/create-react-class/factory.js",
-          "issuerId": 21,
-          "issuerName": "./node_modules/create-react-class/factory.js",
+          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/react/cjs/react.production.min.js",
+          "issuerId": 11,
+          "issuerName": "./node_modules/react/cjs/react.production.min.js",
           "failed": false,
           "errors": 0,
           "warnings": 0,
@@ -3489,9 +3489,9 @@
             1
           ],
           "assets": [],
-          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/babel-loader/lib/index.js??ref--0-0!/Users/ma/CODE/leihs/legacy/app/javascript/packs/application.js",
-          "issuerId": 46,
-          "issuerName": "./app/javascript/packs/application.js",
+          "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/babel-loader/lib/index.js??ref--0-0!/Users/ma/CODE/leihs/legacy/app/javascript/packs/server_rendering.js",
+          "issuerId": 47,
+          "issuerName": "./app/javascript/packs/server_rendering.js",
           "failed": false,
           "errors": 0,
           "warnings": 0,
@@ -4722,9 +4722,9 @@
         1
       ],
       "assets": [],
-      "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/create-react-class/factory.js",
-      "issuerId": 21,
-      "issuerName": "./node_modules/create-react-class/factory.js",
+      "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/react/cjs/react.production.min.js",
+      "issuerId": 11,
+      "issuerName": "./node_modules/react/cjs/react.production.min.js",
       "failed": false,
       "errors": 0,
       "warnings": 0,
@@ -5683,9 +5683,9 @@
         1
       ],
       "assets": [],
-      "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/babel-loader/lib/index.js??ref--0-0!/Users/ma/CODE/leihs/legacy/app/javascript/packs/application.js",
-      "issuerId": 46,
-      "issuerName": "./app/javascript/packs/application.js",
+      "issuer": "/Users/ma/CODE/leihs/legacy/node_modules/babel-loader/lib/index.js??ref--0-0!/Users/ma/CODE/leihs/legacy/app/javascript/packs/server_rendering.js",
+      "issuerId": 47,
+      "issuerName": "./app/javascript/packs/server_rendering.js",
       "failed": false,
       "errors": 0,
       "warnings": 0,
