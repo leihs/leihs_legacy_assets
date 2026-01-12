@@ -307,6 +307,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Latest 10 emails": [
+         null,
+         "Últimos 10 correos electrónicos"
+      ],
       "List of available variables": [
          null,
          ""
@@ -626,6 +630,10 @@ window.i18n.locale_data = {
       "Today": [
          null,
          "Hoy"
+      ],
+      "Total price (indicative value)": [
+         null,
+         "Precio total (valor indicativo)"
       ],
       "Too many users found": [
          null,

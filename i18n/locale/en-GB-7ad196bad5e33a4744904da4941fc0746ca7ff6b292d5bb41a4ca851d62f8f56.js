@@ -1003,6 +1003,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Latest 10 emails": [
+         null,
+         "Latest 10 emails"
+      ],
       "Legend": [
          null,
          ""
@@ -1998,6 +2002,10 @@ window.i18n.locale_data = {
          ""
       ],
       "Total": [
+         null,
+         ""
+      ],
+      "Total price (indicative value)": [
          null,
          ""
       ],

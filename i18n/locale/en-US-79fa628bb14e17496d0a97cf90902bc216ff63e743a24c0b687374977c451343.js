@@ -1031,6 +1031,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Latest 10 emails": [
+         null,
+         "Latest 10 emails"
+      ],
       "Legend": [
          null,
          ""
@@ -2061,6 +2065,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Total price (indicative value)": [
+         null,
+         ""
+      ],
       "Tue": [
          null,
          ""
@@ -2379,10 +2387,6 @@ window.i18n.locale_data = {
          ""
       ],
       "[leihs] Reservation Submitted": [
-         null,
-         ""
-      ],
-      "[leihs] Reservation confirmed (with changes)": [
          null,
          ""
       ],
