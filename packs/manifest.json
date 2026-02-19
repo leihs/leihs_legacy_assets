@@ -1,24 +1,24 @@
 {
-  "application.js": "/assets/packs/js/application-77bb800b8f251a7149d5.js",
-  "application.js.map": "/assets/packs/js/application-77bb800b8f251a7149d5.js.map",
+  "application.js": "/assets/packs/js/application-5d62013e65fe8f2eec82.js",
+  "application.js.map": "/assets/packs/js/application-5d62013e65fe8f2eec82.js.map",
   "entrypoints": {
     "application": {
       "js": [
-        "/assets/packs/js/application-77bb800b8f251a7149d5.js"
+        "/assets/packs/js/application-5d62013e65fe8f2eec82.js"
       ],
       "js.map": [
-        "/assets/packs/js/application-77bb800b8f251a7149d5.js.map"
+        "/assets/packs/js/application-5d62013e65fe8f2eec82.js.map"
       ]
     },
     "server_rendering": {
       "js": [
-        "/assets/packs/js/server_rendering-5e6fc3c3c006a13dc481.js"
+        "/assets/packs/js/server_rendering-73fdbf6e1f80d0d5ba23.js"
       ],
       "js.map": [
-        "/assets/packs/js/server_rendering-5e6fc3c3c006a13dc481.js.map"
+        "/assets/packs/js/server_rendering-73fdbf6e1f80d0d5ba23.js.map"
       ]
     }
   },
-  "server_rendering.js": "/assets/packs/js/server_rendering-5e6fc3c3c006a13dc481.js",
-  "server_rendering.js.map": "/assets/packs/js/server_rendering-5e6fc3c3c006a13dc481.js.map"
+  "server_rendering.js": "/assets/packs/js/server_rendering-73fdbf6e1f80d0d5ba23.js",
+  "server_rendering.js.map": "/assets/packs/js/server_rendering-73fdbf6e1f80d0d5ba23.js.map"
 }
