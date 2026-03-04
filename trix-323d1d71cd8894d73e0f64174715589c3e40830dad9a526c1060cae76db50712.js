@@ -1,6 +1,6 @@
 /*
-Trix 2.1.1
-Copyright © 2024 37signals, LLC
+Trix 2.1.16
+Copyright © 2025 37signals, LLC
  */
 
 (function (global, factory) {
@@ -10,7 +10,7 @@ Copyright © 2024 37signals, LLC
 })(this, (function () { 'use strict';
 
   var name = "trix";
-  var version = "2.1.1";
+  var version = "2.1.16";
   var description = "A rich text editor for everyday writing";
   var main = "dist/trix.umd.min.js";
   var module = "dist/trix.esm.min.js";
@@ -45,19 +45,21 @@ Copyright © 2024 37signals, LLC
   	"@rollup/plugin-node-resolve": "^13.3.0",
   	"@web/dev-server": "^0.1.34",
   	"babel-eslint": "^10.1.0",
+  	chokidar: "^4.0.2",
   	concurrently: "^7.4.0",
   	eslint: "^7.32.0",
   	esm: "^3.2.25",
+  	idiomorph: "^0.7.3",
   	karma: "6.4.1",
   	"karma-chrome-launcher": "3.2.0",
   	"karma-qunit": "^4.1.2",
   	"karma-sauce-launcher": "^4.3.6",
-  	"node-sass": "^7.0.1",
   	qunit: "2.19.1",
   	rangy: "^1.3.0",
   	rollup: "^2.56.3",
   	"rollup-plugin-includepaths": "^0.2.4",
   	"rollup-plugin-terser": "^7.0.2",
+  	sass: "^1.83.0",
   	svgo: "^2.8.0",
   	webdriverio: "^7.19.5"
   };
@@ -65,19 +67,29 @@ Copyright © 2024 37signals, LLC
   	webdriverio: "^7.19.5"
   };
   var scripts = {
-  	"build-css": "node-sass --functions=./assets/trix/stylesheets/functions assets/trix.scss dist/trix.css",
+  	"build-css": "bin/sass-build assets/trix.scss dist/trix.css action_text-trix/app/assets/stylesheets/trix.css",
   	"build-js": "rollup -c",
   	"build-assets": "cp -f assets/*.html dist/",
-  	build: "yarn run build-js && yarn run build-css && yarn run build-assets",
+  	"build-ruby": "rake -C action_text-trix sync",
+  	build: "yarn run build-js && yarn run build-css && yarn run build-assets && yarn run build-ruby",
   	watch: "rollup -c -w",
   	lint: "eslint .",
   	pretest: "yarn run lint && yarn run build",
   	test: "karma start",
+  	version: "yarn build && git add action_text-trix",
   	prerelease: "yarn version && yarn test",
-  	release: "npm adduser && npm publish",
+  	"release-npm": "npm adduser && npm publish",
+  	"release-ruby": "rake -C action_text-trix release",
+  	release: "yarn run release-npm && yarn run release-ruby",
   	postrelease: "git push && git push --tags",
   	dev: "web-dev-server --app-index index.html  --root-dir dist --node-resolve --open",
   	start: "yarn build-assets && concurrently --kill-others --names js,css,dev-server 'yarn watch' 'yarn build-css --watch' 'yarn dev'"
+  };
+  var dependencies = {
+  	dompurify: "^3.2.5"
+  };
+  var engines = {
+  	node: ">= 18"
   };
   var _package = {
   	name: name,
@@ -95,7 +107,9 @@ Copyright © 2024 37signals, LLC
   	homepage: homepage,
   	devDependencies: devDependencies,
   	resolutions: resolutions,
-  	scripts: scripts
+  	scripts: scripts,
+  	dependencies: dependencies,
+  	engines: engines
   };
 
   const attachmentSelector = "[data-trix-attachment]";
@@ -206,6 +220,12 @@ Copyright © 2024 37signals, LLC
     attachmentGallery: "attachment-gallery"
   };
 
+  var dompurify = {
+    ADD_ATTR: ["language"],
+    SAFE_FOR_XML: false,
+    RETURN_DOM: true
+  };
+
   var lang$1 = {
     attachFiles: "Attach Files",
     bold: "Bold",
@@ -276,8 +296,8 @@ Copyright © 2024 37signals, LLC
     return this;
   };
 
-  const html = document.documentElement;
-  const match = html.matches;
+  const html$2 = document.documentElement;
+  const match = html$2.matches;
   const handleEvent = function (eventName) {
     let {
       onElement,
@@ -287,7 +307,7 @@ Copyright © 2024 37signals, LLC
       preventDefault,
       times
     } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-    const element = onElement ? onElement : html;
+    const element = onElement ? onElement : html$2;
     const selector = matchingSelector;
     const useCapture = inPhase === "capturing";
     const handler = function (event) {
@@ -313,14 +333,12 @@ Copyright © 2024 37signals, LLC
     options.times = 1;
     return handleEvent(eventName, options);
   };
-  const triggerEvent = function (eventName) {
+  const createEvent = function (eventName) {
     let {
-      onElement,
       bubbles,
       cancelable,
       attributes
     } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-    const element = onElement != null ? onElement : html;
     bubbles = bubbles !== false;
     cancelable = cancelable !== false;
     const event = document.createEvent("Events");
@@ -328,6 +346,21 @@ Copyright © 2024 37signals, LLC
     if (attributes != null) {
       extend.call(event, attributes);
     }
+    return event;
+  };
+  const triggerEvent = function (eventName) {
+    let {
+      onElement,
+      bubbles,
+      cancelable,
+      attributes
+    } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    const element = onElement != null ? onElement : html$2;
+    const event = createEvent(eventName, {
+      bubbles,
+      cancelable,
+      attributes
+    });
     return element.dispatchEvent(event);
   };
   const elementMatchesSelector = function (element, selector) {
@@ -628,7 +661,7 @@ Copyright © 2024 37signals, LLC
 
   var toolbar = {
     getDefaultHTML() {
-      return "<div class=\"trix-button-row\">\n      <span class=\"trix-button-group trix-button-group--text-tools\" data-trix-button-group=\"text-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-bold\" data-trix-attribute=\"bold\" data-trix-key=\"b\" title=\"".concat(lang$1.bold, "\" tabindex=\"-1\">").concat(lang$1.bold, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-italic\" data-trix-attribute=\"italic\" data-trix-key=\"i\" title=\"").concat(lang$1.italic, "\" tabindex=\"-1\">").concat(lang$1.italic, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-strike\" data-trix-attribute=\"strike\" title=\"").concat(lang$1.strike, "\" tabindex=\"-1\">").concat(lang$1.strike, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-link\" data-trix-attribute=\"href\" data-trix-action=\"link\" data-trix-key=\"k\" title=\"").concat(lang$1.link, "\" tabindex=\"-1\">").concat(lang$1.link, "</button>\n      </span>\n\n      <span class=\"trix-button-group trix-button-group--block-tools\" data-trix-button-group=\"block-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-heading-1\" data-trix-attribute=\"heading1\" title=\"").concat(lang$1.heading1, "\" tabindex=\"-1\">").concat(lang$1.heading1, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-quote\" data-trix-attribute=\"quote\" title=\"").concat(lang$1.quote, "\" tabindex=\"-1\">").concat(lang$1.quote, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-code\" data-trix-attribute=\"code\" title=\"").concat(lang$1.code, "\" tabindex=\"-1\">").concat(lang$1.code, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-bullet-list\" data-trix-attribute=\"bullet\" title=\"").concat(lang$1.bullets, "\" tabindex=\"-1\">").concat(lang$1.bullets, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-number-list\" data-trix-attribute=\"number\" title=\"").concat(lang$1.numbers, "\" tabindex=\"-1\">").concat(lang$1.numbers, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-decrease-nesting-level\" data-trix-action=\"decreaseNestingLevel\" title=\"").concat(lang$1.outdent, "\" tabindex=\"-1\">").concat(lang$1.outdent, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-increase-nesting-level\" data-trix-action=\"increaseNestingLevel\" title=\"").concat(lang$1.indent, "\" tabindex=\"-1\">").concat(lang$1.indent, "</button>\n      </span>\n\n      <span class=\"trix-button-group trix-button-group--file-tools\" data-trix-button-group=\"file-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-attach\" data-trix-action=\"attachFiles\" title=\"").concat(lang$1.attachFiles, "\" tabindex=\"-1\">").concat(lang$1.attachFiles, "</button>\n      </span>\n\n      <span class=\"trix-button-group-spacer\"></span>\n\n      <span class=\"trix-button-group trix-button-group--history-tools\" data-trix-button-group=\"history-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-undo\" data-trix-action=\"undo\" data-trix-key=\"z\" title=\"").concat(lang$1.undo, "\" tabindex=\"-1\">").concat(lang$1.undo, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-redo\" data-trix-action=\"redo\" data-trix-key=\"shift+z\" title=\"").concat(lang$1.redo, "\" tabindex=\"-1\">").concat(lang$1.redo, "</button>\n      </span>\n    </div>\n\n    <div class=\"trix-dialogs\" data-trix-dialogs>\n      <div class=\"trix-dialog trix-dialog--link\" data-trix-dialog=\"href\" data-trix-dialog-attribute=\"href\">\n        <div class=\"trix-dialog__link-fields\">\n          <input type=\"url\" name=\"href\" class=\"trix-input trix-input--dialog\" placeholder=\"").concat(lang$1.urlPlaceholder, "\" aria-label=\"").concat(lang$1.url, "\" required data-trix-input>\n          <div class=\"trix-button-group\">\n            <input type=\"button\" class=\"trix-button trix-button--dialog\" value=\"").concat(lang$1.link, "\" data-trix-method=\"setAttribute\">\n            <input type=\"button\" class=\"trix-button trix-button--dialog\" value=\"").concat(lang$1.unlink, "\" data-trix-method=\"removeAttribute\">\n          </div>\n        </div>\n      </div>\n    </div>");
+      return "<div class=\"trix-button-row\">\n      <span class=\"trix-button-group trix-button-group--text-tools\" data-trix-button-group=\"text-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-bold\" data-trix-attribute=\"bold\" data-trix-key=\"b\" title=\"".concat(lang$1.bold, "\" tabindex=\"-1\">").concat(lang$1.bold, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-italic\" data-trix-attribute=\"italic\" data-trix-key=\"i\" title=\"").concat(lang$1.italic, "\" tabindex=\"-1\">").concat(lang$1.italic, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-strike\" data-trix-attribute=\"strike\" title=\"").concat(lang$1.strike, "\" tabindex=\"-1\">").concat(lang$1.strike, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-link\" data-trix-attribute=\"href\" data-trix-action=\"link\" data-trix-key=\"k\" title=\"").concat(lang$1.link, "\" tabindex=\"-1\">").concat(lang$1.link, "</button>\n      </span>\n\n      <span class=\"trix-button-group trix-button-group--block-tools\" data-trix-button-group=\"block-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-heading-1\" data-trix-attribute=\"heading1\" title=\"").concat(lang$1.heading1, "\" tabindex=\"-1\">").concat(lang$1.heading1, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-quote\" data-trix-attribute=\"quote\" title=\"").concat(lang$1.quote, "\" tabindex=\"-1\">").concat(lang$1.quote, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-code\" data-trix-attribute=\"code\" title=\"").concat(lang$1.code, "\" tabindex=\"-1\">").concat(lang$1.code, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-bullet-list\" data-trix-attribute=\"bullet\" title=\"").concat(lang$1.bullets, "\" tabindex=\"-1\">").concat(lang$1.bullets, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-number-list\" data-trix-attribute=\"number\" title=\"").concat(lang$1.numbers, "\" tabindex=\"-1\">").concat(lang$1.numbers, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-decrease-nesting-level\" data-trix-action=\"decreaseNestingLevel\" title=\"").concat(lang$1.outdent, "\" tabindex=\"-1\">").concat(lang$1.outdent, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-increase-nesting-level\" data-trix-action=\"increaseNestingLevel\" title=\"").concat(lang$1.indent, "\" tabindex=\"-1\">").concat(lang$1.indent, "</button>\n      </span>\n\n      <span class=\"trix-button-group trix-button-group--file-tools\" data-trix-button-group=\"file-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-attach\" data-trix-action=\"attachFiles\" title=\"").concat(lang$1.attachFiles, "\" tabindex=\"-1\">").concat(lang$1.attachFiles, "</button>\n      </span>\n\n      <span class=\"trix-button-group-spacer\"></span>\n\n      <span class=\"trix-button-group trix-button-group--history-tools\" data-trix-button-group=\"history-tools\">\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-undo\" data-trix-action=\"undo\" data-trix-key=\"z\" title=\"").concat(lang$1.undo, "\" tabindex=\"-1\">").concat(lang$1.undo, "</button>\n        <button type=\"button\" class=\"trix-button trix-button--icon trix-button--icon-redo\" data-trix-action=\"redo\" data-trix-key=\"shift+z\" title=\"").concat(lang$1.redo, "\" tabindex=\"-1\">").concat(lang$1.redo, "</button>\n      </span>\n    </div>\n\n    <div class=\"trix-dialogs\" data-trix-dialogs>\n      <div class=\"trix-dialog trix-dialog--link\" data-trix-dialog=\"href\" data-trix-dialog-attribute=\"href\">\n        <div class=\"trix-dialog__link-fields\">\n          <input type=\"url\" name=\"href\" class=\"trix-input trix-input--dialog\" placeholder=\"").concat(lang$1.urlPlaceholder, "\" aria-label=\"").concat(lang$1.url, "\" data-trix-validate-href required data-trix-input>\n          <div class=\"trix-button-group\">\n            <input type=\"button\" class=\"trix-button trix-button--dialog\" value=\"").concat(lang$1.link, "\" data-trix-method=\"setAttribute\">\n            <input type=\"button\" class=\"trix-button trix-button--dialog\" value=\"").concat(lang$1.unlink, "\" data-trix-method=\"removeAttribute\">\n          </div>\n        </div>\n      </div>\n    </div>");
     }
   };
 
@@ -642,6 +675,7 @@ Copyright © 2024 37signals, LLC
     blockAttributes: attributes,
     browser: browser$1,
     css: css$3,
+    dompurify: dompurify,
     fileSize: file_size_formatting,
     input: input,
     keyNames: key_names,
@@ -677,11 +711,11 @@ Copyright © 2024 37signals, LLC
           var _object;
           subject = (_object = object) === null || _object === void 0 ? void 0 : _object[name];
           if (subject) {
-            return apply.call(subject, object, arguments);
+            return apply$1.call(subject, object, arguments);
           }
         } else {
           subject = object[name];
-          return apply.call(subject, object, arguments);
+          return apply$1.call(subject, object, arguments);
         }
       };
     }
@@ -705,7 +739,7 @@ Copyright © 2024 37signals, LLC
     return args;
   };
   const {
-    apply
+    apply: apply$1
   } = Function.prototype;
   const proxyMethodExpressionPattern = new RegExp("\
 ^\
@@ -1038,7 +1072,11 @@ $\
   const getCSPNonce = function () {
     const element = getMetaElement("trix-csp-nonce") || getMetaElement("csp-nonce");
     if (element) {
-      return element.getAttribute("content");
+      const {
+        nonce,
+        content
+      } = element;
+      return nonce == "" ? content : nonce;
     }
   };
   const getMetaElement = name => document.head.querySelector("meta[name=".concat(name, "]"));
@@ -1060,6 +1098,12 @@ $\
       return text === null || text === void 0 ? void 0 : text.length;
     }
   };
+  const dataTransferIsMsOfficePaste = _ref => {
+    let {
+      dataTransfer
+    } = _ref;
+    return dataTransfer.types.includes("Files") && dataTransfer.types.includes("text/html") && dataTransfer.getData("text/html").includes("urn:schemas-microsoft-com:office:office");
+  };
   const dataTransferIsWritable = function (dataTransfer) {
     if (!(dataTransfer !== null && dataTransfer !== void 0 && dataTransfer.setData)) return false;
     for (const key in testTransferData) {
@@ -1080,6 +1124,19 @@ $\
       return event => event.ctrlKey;
     }
   }();
+  function shouldRenderInmmediatelyToDealWithIOSDictation(inputEvent) {
+    if (/iPhone|iPad/.test(navigator.userAgent)) {
+      // Handle garbled content and duplicated newlines when using dictation on iOS 18+. Upon dictation completion, iOS sends
+      // the list of insertText / insertParagraph events in a quick sequence. If we don't render
+      // the editor synchronously, the internal range fails to update and results in garbled content or duplicated newlines.
+      //
+      // This workaround is necessary because iOS doesn't send composing events as expected while dictating:
+      // https://bugs.webkit.org/show_bug.cgi?id=261764
+      return !inputEvent.inputType || inputEvent.inputType === "insertParagraph";
+    } else {
+      return false;
+    }
+  }
 
   const defer = fn => setTimeout(fn, 1);
 
@@ -1708,6 +1765,1480 @@ $\
     }
   }
 
+  /*! @license DOMPurify 3.2.7 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.2.7/LICENSE */
+
+  const {
+    entries,
+    setPrototypeOf,
+    isFrozen,
+    getPrototypeOf,
+    getOwnPropertyDescriptor
+  } = Object;
+  let {
+    freeze,
+    seal,
+    create
+  } = Object; // eslint-disable-line import/no-mutable-exports
+  let {
+    apply,
+    construct
+  } = typeof Reflect !== 'undefined' && Reflect;
+  if (!freeze) {
+    freeze = function freeze(x) {
+      return x;
+    };
+  }
+  if (!seal) {
+    seal = function seal(x) {
+      return x;
+    };
+  }
+  if (!apply) {
+    apply = function apply(func, thisArg) {
+      for (var _len = arguments.length, args = new Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) {
+        args[_key - 2] = arguments[_key];
+      }
+      return func.apply(thisArg, args);
+    };
+  }
+  if (!construct) {
+    construct = function construct(Func) {
+      for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+        args[_key2 - 1] = arguments[_key2];
+      }
+      return new Func(...args);
+    };
+  }
+  const arrayForEach = unapply(Array.prototype.forEach);
+  const arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
+  const arrayPop = unapply(Array.prototype.pop);
+  const arrayPush = unapply(Array.prototype.push);
+  const arraySplice = unapply(Array.prototype.splice);
+  const stringToLowerCase = unapply(String.prototype.toLowerCase);
+  const stringToString = unapply(String.prototype.toString);
+  const stringMatch = unapply(String.prototype.match);
+  const stringReplace = unapply(String.prototype.replace);
+  const stringIndexOf = unapply(String.prototype.indexOf);
+  const stringTrim = unapply(String.prototype.trim);
+  const objectHasOwnProperty = unapply(Object.prototype.hasOwnProperty);
+  const regExpTest = unapply(RegExp.prototype.test);
+  const typeErrorCreate = unconstruct(TypeError);
+  /**
+   * Creates a new function that calls the given function with a specified thisArg and arguments.
+   *
+   * @param func - The function to be wrapped and called.
+   * @returns A new function that calls the given function with a specified thisArg and arguments.
+   */
+  function unapply(func) {
+    return function (thisArg) {
+      if (thisArg instanceof RegExp) {
+        thisArg.lastIndex = 0;
+      }
+      for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+        args[_key3 - 1] = arguments[_key3];
+      }
+      return apply(func, thisArg, args);
+    };
+  }
+  /**
+   * Creates a new function that constructs an instance of the given constructor function with the provided arguments.
+   *
+   * @param func - The constructor function to be wrapped and called.
+   * @returns A new function that constructs an instance of the given constructor function with the provided arguments.
+   */
+  function unconstruct(Func) {
+    return function () {
+      for (var _len4 = arguments.length, args = new Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
+        args[_key4] = arguments[_key4];
+      }
+      return construct(Func, args);
+    };
+  }
+  /**
+   * Add properties to a lookup table
+   *
+   * @param set - The set to which elements will be added.
+   * @param array - The array containing elements to be added to the set.
+   * @param transformCaseFunc - An optional function to transform the case of each element before adding to the set.
+   * @returns The modified set with added elements.
+   */
+  function addToSet(set, array) {
+    let transformCaseFunc = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : stringToLowerCase;
+    if (setPrototypeOf) {
+      // Make 'in' and truthy checks like Boolean(set.constructor)
+      // independent of any properties defined on Object.prototype.
+      // Prevent prototype setters from intercepting set as a this value.
+      setPrototypeOf(set, null);
+    }
+    let l = array.length;
+    while (l--) {
+      let element = array[l];
+      if (typeof element === 'string') {
+        const lcElement = transformCaseFunc(element);
+        if (lcElement !== element) {
+          // Config presets (e.g. tags.js, attrs.js) are immutable.
+          if (!isFrozen(array)) {
+            array[l] = lcElement;
+          }
+          element = lcElement;
+        }
+      }
+      set[element] = true;
+    }
+    return set;
+  }
+  /**
+   * Clean up an array to harden against CSPP
+   *
+   * @param array - The array to be cleaned.
+   * @returns The cleaned version of the array
+   */
+  function cleanArray(array) {
+    for (let index = 0; index < array.length; index++) {
+      const isPropertyExist = objectHasOwnProperty(array, index);
+      if (!isPropertyExist) {
+        array[index] = null;
+      }
+    }
+    return array;
+  }
+  /**
+   * Shallow clone an object
+   *
+   * @param object - The object to be cloned.
+   * @returns A new object that copies the original.
+   */
+  function clone(object) {
+    const newObject = create(null);
+    for (const [property, value] of entries(object)) {
+      const isPropertyExist = objectHasOwnProperty(object, property);
+      if (isPropertyExist) {
+        if (Array.isArray(value)) {
+          newObject[property] = cleanArray(value);
+        } else if (value && typeof value === 'object' && value.constructor === Object) {
+          newObject[property] = clone(value);
+        } else {
+          newObject[property] = value;
+        }
+      }
+    }
+    return newObject;
+  }
+  /**
+   * This method automatically checks if the prop is function or getter and behaves accordingly.
+   *
+   * @param object - The object to look up the getter function in its prototype chain.
+   * @param prop - The property name for which to find the getter function.
+   * @returns The getter function found in the prototype chain or a fallback function.
+   */
+  function lookupGetter(object, prop) {
+    while (object !== null) {
+      const desc = getOwnPropertyDescriptor(object, prop);
+      if (desc) {
+        if (desc.get) {
+          return unapply(desc.get);
+        }
+        if (typeof desc.value === 'function') {
+          return unapply(desc.value);
+        }
+      }
+      object = getPrototypeOf(object);
+    }
+    function fallbackValue() {
+      return null;
+    }
+    return fallbackValue;
+  }
+  const html$1 = freeze(['a', 'abbr', 'acronym', 'address', 'area', 'article', 'aside', 'audio', 'b', 'bdi', 'bdo', 'big', 'blink', 'blockquote', 'body', 'br', 'button', 'canvas', 'caption', 'center', 'cite', 'code', 'col', 'colgroup', 'content', 'data', 'datalist', 'dd', 'decorator', 'del', 'details', 'dfn', 'dialog', 'dir', 'div', 'dl', 'dt', 'element', 'em', 'fieldset', 'figcaption', 'figure', 'font', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html', 'i', 'img', 'input', 'ins', 'kbd', 'label', 'legend', 'li', 'main', 'map', 'mark', 'marquee', 'menu', 'menuitem', 'meter', 'nav', 'nobr', 'ol', 'optgroup', 'option', 'output', 'p', 'picture', 'pre', 'progress', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'search', 'section', 'select', 'shadow', 'slot', 'small', 'source', 'spacer', 'span', 'strike', 'strong', 'style', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'tr', 'track', 'tt', 'u', 'ul', 'var', 'video', 'wbr']);
+  const svg$1 = freeze(['svg', 'a', 'altglyph', 'altglyphdef', 'altglyphitem', 'animatecolor', 'animatemotion', 'animatetransform', 'circle', 'clippath', 'defs', 'desc', 'ellipse', 'enterkeyhint', 'exportparts', 'filter', 'font', 'g', 'glyph', 'glyphref', 'hkern', 'image', 'inputmode', 'line', 'lineargradient', 'marker', 'mask', 'metadata', 'mpath', 'part', 'path', 'pattern', 'polygon', 'polyline', 'radialgradient', 'rect', 'slot', 'stop', 'style', 'switch', 'symbol', 'text', 'textpath', 'title', 'tref', 'tspan', 'view', 'vkern']);
+  const svgFilters = freeze(['feBlend', 'feColorMatrix', 'feComponentTransfer', 'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap', 'feDistantLight', 'feDropShadow', 'feFlood', 'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur', 'feImage', 'feMerge', 'feMergeNode', 'feMorphology', 'feOffset', 'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile', 'feTurbulence']);
+  // List of SVG elements that are disallowed by default.
+  // We still need to know them so that we can do namespace
+  // checks properly in case one wants to add them to
+  // allow-list.
+  const svgDisallowed = freeze(['animate', 'color-profile', 'cursor', 'discard', 'font-face', 'font-face-format', 'font-face-name', 'font-face-src', 'font-face-uri', 'foreignobject', 'hatch', 'hatchpath', 'mesh', 'meshgradient', 'meshpatch', 'meshrow', 'missing-glyph', 'script', 'set', 'solidcolor', 'unknown', 'use']);
+  const mathMl$1 = freeze(['math', 'menclose', 'merror', 'mfenced', 'mfrac', 'mglyph', 'mi', 'mlabeledtr', 'mmultiscripts', 'mn', 'mo', 'mover', 'mpadded', 'mphantom', 'mroot', 'mrow', 'ms', 'mspace', 'msqrt', 'mstyle', 'msub', 'msup', 'msubsup', 'mtable', 'mtd', 'mtext', 'mtr', 'munder', 'munderover', 'mprescripts']);
+  // Similarly to SVG, we want to know all MathML elements,
+  // even those that we disallow by default.
+  const mathMlDisallowed = freeze(['maction', 'maligngroup', 'malignmark', 'mlongdiv', 'mscarries', 'mscarry', 'msgroup', 'mstack', 'msline', 'msrow', 'semantics', 'annotation', 'annotation-xml', 'mprescripts', 'none']);
+  const text = freeze(['#text']);
+  const html = freeze(['accept', 'action', 'align', 'alt', 'autocapitalize', 'autocomplete', 'autopictureinpicture', 'autoplay', 'background', 'bgcolor', 'border', 'capture', 'cellpadding', 'cellspacing', 'checked', 'cite', 'class', 'clear', 'color', 'cols', 'colspan', 'controls', 'controlslist', 'coords', 'crossorigin', 'datetime', 'decoding', 'default', 'dir', 'disabled', 'disablepictureinpicture', 'disableremoteplayback', 'download', 'draggable', 'enctype', 'enterkeyhint', 'exportparts', 'face', 'for', 'headers', 'height', 'hidden', 'high', 'href', 'hreflang', 'id', 'inert', 'inputmode', 'integrity', 'ismap', 'kind', 'label', 'lang', 'list', 'loading', 'loop', 'low', 'max', 'maxlength', 'media', 'method', 'min', 'minlength', 'multiple', 'muted', 'name', 'nonce', 'noshade', 'novalidate', 'nowrap', 'open', 'optimum', 'part', 'pattern', 'placeholder', 'playsinline', 'popover', 'popovertarget', 'popovertargetaction', 'poster', 'preload', 'pubdate', 'radiogroup', 'readonly', 'rel', 'required', 'rev', 'reversed', 'role', 'rows', 'rowspan', 'spellcheck', 'scope', 'selected', 'shape', 'size', 'sizes', 'slot', 'span', 'srclang', 'start', 'src', 'srcset', 'step', 'style', 'summary', 'tabindex', 'title', 'translate', 'type', 'usemap', 'valign', 'value', 'width', 'wrap', 'xmlns', 'slot']);
+  const svg = freeze(['accent-height', 'accumulate', 'additive', 'alignment-baseline', 'amplitude', 'ascent', 'attributename', 'attributetype', 'azimuth', 'basefrequency', 'baseline-shift', 'begin', 'bias', 'by', 'class', 'clip', 'clippathunits', 'clip-path', 'clip-rule', 'color', 'color-interpolation', 'color-interpolation-filters', 'color-profile', 'color-rendering', 'cx', 'cy', 'd', 'dx', 'dy', 'diffuseconstant', 'direction', 'display', 'divisor', 'dur', 'edgemode', 'elevation', 'end', 'exponent', 'fill', 'fill-opacity', 'fill-rule', 'filter', 'filterunits', 'flood-color', 'flood-opacity', 'font-family', 'font-size', 'font-size-adjust', 'font-stretch', 'font-style', 'font-variant', 'font-weight', 'fx', 'fy', 'g1', 'g2', 'glyph-name', 'glyphref', 'gradientunits', 'gradienttransform', 'height', 'href', 'id', 'image-rendering', 'in', 'in2', 'intercept', 'k', 'k1', 'k2', 'k3', 'k4', 'kerning', 'keypoints', 'keysplines', 'keytimes', 'lang', 'lengthadjust', 'letter-spacing', 'kernelmatrix', 'kernelunitlength', 'lighting-color', 'local', 'marker-end', 'marker-mid', 'marker-start', 'markerheight', 'markerunits', 'markerwidth', 'maskcontentunits', 'maskunits', 'max', 'mask', 'media', 'method', 'mode', 'min', 'name', 'numoctaves', 'offset', 'operator', 'opacity', 'order', 'orient', 'orientation', 'origin', 'overflow', 'paint-order', 'path', 'pathlength', 'patterncontentunits', 'patterntransform', 'patternunits', 'points', 'preservealpha', 'preserveaspectratio', 'primitiveunits', 'r', 'rx', 'ry', 'radius', 'refx', 'refy', 'repeatcount', 'repeatdur', 'restart', 'result', 'rotate', 'scale', 'seed', 'shape-rendering', 'slope', 'specularconstant', 'specularexponent', 'spreadmethod', 'startoffset', 'stddeviation', 'stitchtiles', 'stop-color', 'stop-opacity', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 'stroke', 'stroke-width', 'style', 'surfacescale', 'systemlanguage', 'tabindex', 'tablevalues', 'targetx', 'targety', 'transform', 'transform-origin', 'text-anchor', 'text-decoration', 'text-rendering', 'textlength', 'type', 'u1', 'u2', 'unicode', 'values', 'viewbox', 'visibility', 'version', 'vert-adv-y', 'vert-origin-x', 'vert-origin-y', 'width', 'word-spacing', 'wrap', 'writing-mode', 'xchannelselector', 'ychannelselector', 'x', 'x1', 'x2', 'xmlns', 'y', 'y1', 'y2', 'z', 'zoomandpan']);
+  const mathMl = freeze(['accent', 'accentunder', 'align', 'bevelled', 'close', 'columnsalign', 'columnlines', 'columnspan', 'denomalign', 'depth', 'dir', 'display', 'displaystyle', 'encoding', 'fence', 'frame', 'height', 'href', 'id', 'largeop', 'length', 'linethickness', 'lspace', 'lquote', 'mathbackground', 'mathcolor', 'mathsize', 'mathvariant', 'maxsize', 'minsize', 'movablelimits', 'notation', 'numalign', 'open', 'rowalign', 'rowlines', 'rowspacing', 'rowspan', 'rspace', 'rquote', 'scriptlevel', 'scriptminsize', 'scriptsizemultiplier', 'selection', 'separator', 'separators', 'stretchy', 'subscriptshift', 'supscriptshift', 'symmetric', 'voffset', 'width', 'xmlns']);
+  const xml = freeze(['xlink:href', 'xml:id', 'xlink:title', 'xml:space', 'xmlns:xlink']);
+
+  // eslint-disable-next-line unicorn/better-regex
+  const MUSTACHE_EXPR = seal(/\{\{[\w\W]*|[\w\W]*\}\}/gm); // Specify template detection regex for SAFE_FOR_TEMPLATES mode
+  const ERB_EXPR = seal(/<%[\w\W]*|[\w\W]*%>/gm);
+  const TMPLIT_EXPR = seal(/\$\{[\w\W]*/gm); // eslint-disable-line unicorn/better-regex
+  const DATA_ATTR = seal(/^data-[\-\w.\u00B7-\uFFFF]+$/); // eslint-disable-line no-useless-escape
+  const ARIA_ATTR = seal(/^aria-[\-\w]+$/); // eslint-disable-line no-useless-escape
+  const IS_ALLOWED_URI = seal(/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i // eslint-disable-line no-useless-escape
+  );
+  const IS_SCRIPT_OR_DATA = seal(/^(?:\w+script|data):/i);
+  const ATTR_WHITESPACE = seal(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g // eslint-disable-line no-control-regex
+  );
+  const DOCTYPE_NAME = seal(/^html$/i);
+  const CUSTOM_ELEMENT = seal(/^[a-z][.\w]*(-[.\w]+)+$/i);
+  var EXPRESSIONS = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    ARIA_ATTR: ARIA_ATTR,
+    ATTR_WHITESPACE: ATTR_WHITESPACE,
+    CUSTOM_ELEMENT: CUSTOM_ELEMENT,
+    DATA_ATTR: DATA_ATTR,
+    DOCTYPE_NAME: DOCTYPE_NAME,
+    ERB_EXPR: ERB_EXPR,
+    IS_ALLOWED_URI: IS_ALLOWED_URI,
+    IS_SCRIPT_OR_DATA: IS_SCRIPT_OR_DATA,
+    MUSTACHE_EXPR: MUSTACHE_EXPR,
+    TMPLIT_EXPR: TMPLIT_EXPR
+  });
+
+  /* eslint-disable @typescript-eslint/indent */
+  // https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType
+  const NODE_TYPE = {
+    element: 1,
+    attribute: 2,
+    text: 3,
+    cdataSection: 4,
+    entityReference: 5,
+    // Deprecated
+    entityNode: 6,
+    // Deprecated
+    progressingInstruction: 7,
+    comment: 8,
+    document: 9,
+    documentType: 10,
+    documentFragment: 11,
+    notation: 12 // Deprecated
+  };
+  const getGlobal = function getGlobal() {
+    return typeof window === 'undefined' ? null : window;
+  };
+  /**
+   * Creates a no-op policy for internal use only.
+   * Don't export this function outside this module!
+   * @param trustedTypes The policy factory.
+   * @param purifyHostElement The Script element used to load DOMPurify (to determine policy name suffix).
+   * @return The policy created (or null, if Trusted Types
+   * are not supported or creating the policy failed).
+   */
+  const _createTrustedTypesPolicy = function _createTrustedTypesPolicy(trustedTypes, purifyHostElement) {
+    if (typeof trustedTypes !== 'object' || typeof trustedTypes.createPolicy !== 'function') {
+      return null;
+    }
+    // Allow the callers to control the unique policy name
+    // by adding a data-tt-policy-suffix to the script element with the DOMPurify.
+    // Policy creation with duplicate names throws in Trusted Types.
+    let suffix = null;
+    const ATTR_NAME = 'data-tt-policy-suffix';
+    if (purifyHostElement && purifyHostElement.hasAttribute(ATTR_NAME)) {
+      suffix = purifyHostElement.getAttribute(ATTR_NAME);
+    }
+    const policyName = 'dompurify' + (suffix ? '#' + suffix : '');
+    try {
+      return trustedTypes.createPolicy(policyName, {
+        createHTML(html) {
+          return html;
+        },
+        createScriptURL(scriptUrl) {
+          return scriptUrl;
+        }
+      });
+    } catch (_) {
+      // Policy creation failed (most likely another DOMPurify script has
+      // already run). Skip creating the policy, as this will only cause errors
+      // if TT are enforced.
+      console.warn('TrustedTypes policy ' + policyName + ' could not be created.');
+      return null;
+    }
+  };
+  const _createHooksMap = function _createHooksMap() {
+    return {
+      afterSanitizeAttributes: [],
+      afterSanitizeElements: [],
+      afterSanitizeShadowDOM: [],
+      beforeSanitizeAttributes: [],
+      beforeSanitizeElements: [],
+      beforeSanitizeShadowDOM: [],
+      uponSanitizeAttribute: [],
+      uponSanitizeElement: [],
+      uponSanitizeShadowNode: []
+    };
+  };
+  function createDOMPurify() {
+    let window = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : getGlobal();
+    const DOMPurify = root => createDOMPurify(root);
+    DOMPurify.version = '3.2.7';
+    DOMPurify.removed = [];
+    if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
+      // Not running in a browser, provide a factory function
+      // so that you can pass your own Window
+      DOMPurify.isSupported = false;
+      return DOMPurify;
+    }
+    let {
+      document
+    } = window;
+    const originalDocument = document;
+    const currentScript = originalDocument.currentScript;
+    const {
+      DocumentFragment,
+      HTMLTemplateElement,
+      Node,
+      Element,
+      NodeFilter,
+      NamedNodeMap = window.NamedNodeMap || window.MozNamedAttrMap,
+      HTMLFormElement,
+      DOMParser,
+      trustedTypes
+    } = window;
+    const ElementPrototype = Element.prototype;
+    const cloneNode = lookupGetter(ElementPrototype, 'cloneNode');
+    const remove = lookupGetter(ElementPrototype, 'remove');
+    const getNextSibling = lookupGetter(ElementPrototype, 'nextSibling');
+    const getChildNodes = lookupGetter(ElementPrototype, 'childNodes');
+    const getParentNode = lookupGetter(ElementPrototype, 'parentNode');
+    // As per issue #47, the web-components registry is inherited by a
+    // new document created via createHTMLDocument. As per the spec
+    // (http://w3c.github.io/webcomponents/spec/custom/#creating-and-passing-registries)
+    // a new empty registry is used when creating a template contents owner
+    // document, so we use that as our parent document to ensure nothing
+    // is inherited.
+    if (typeof HTMLTemplateElement === 'function') {
+      const template = document.createElement('template');
+      if (template.content && template.content.ownerDocument) {
+        document = template.content.ownerDocument;
+      }
+    }
+    let trustedTypesPolicy;
+    let emptyHTML = '';
+    const {
+      implementation,
+      createNodeIterator,
+      createDocumentFragment,
+      getElementsByTagName
+    } = document;
+    const {
+      importNode
+    } = originalDocument;
+    let hooks = _createHooksMap();
+    /**
+     * Expose whether this browser supports running the full DOMPurify.
+     */
+    DOMPurify.isSupported = typeof entries === 'function' && typeof getParentNode === 'function' && implementation && implementation.createHTMLDocument !== undefined;
+    const {
+      MUSTACHE_EXPR,
+      ERB_EXPR,
+      TMPLIT_EXPR,
+      DATA_ATTR,
+      ARIA_ATTR,
+      IS_SCRIPT_OR_DATA,
+      ATTR_WHITESPACE,
+      CUSTOM_ELEMENT
+    } = EXPRESSIONS;
+    let {
+      IS_ALLOWED_URI: IS_ALLOWED_URI$1
+    } = EXPRESSIONS;
+    /**
+     * We consider the elements and attributes below to be safe. Ideally
+     * don't add any new ones but feel free to remove unwanted ones.
+     */
+    /* allowed element names */
+    let ALLOWED_TAGS = null;
+    const DEFAULT_ALLOWED_TAGS = addToSet({}, [...html$1, ...svg$1, ...svgFilters, ...mathMl$1, ...text]);
+    /* Allowed attribute names */
+    let ALLOWED_ATTR = null;
+    const DEFAULT_ALLOWED_ATTR = addToSet({}, [...html, ...svg, ...mathMl, ...xml]);
+    /*
+     * Configure how DOMPurify should handle custom elements and their attributes as well as customized built-in elements.
+     * @property {RegExp|Function|null} tagNameCheck one of [null, regexPattern, predicate]. Default: `null` (disallow any custom elements)
+     * @property {RegExp|Function|null} attributeNameCheck one of [null, regexPattern, predicate]. Default: `null` (disallow any attributes not on the allow list)
+     * @property {boolean} allowCustomizedBuiltInElements allow custom elements derived from built-ins if they pass CUSTOM_ELEMENT_HANDLING.tagNameCheck. Default: `false`.
+     */
+    let CUSTOM_ELEMENT_HANDLING = Object.seal(create(null, {
+      tagNameCheck: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: null
+      },
+      attributeNameCheck: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: null
+      },
+      allowCustomizedBuiltInElements: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: false
+      }
+    }));
+    /* Explicitly forbidden tags (overrides ALLOWED_TAGS/ADD_TAGS) */
+    let FORBID_TAGS = null;
+    /* Explicitly forbidden attributes (overrides ALLOWED_ATTR/ADD_ATTR) */
+    let FORBID_ATTR = null;
+    /* Decide if ARIA attributes are okay */
+    let ALLOW_ARIA_ATTR = true;
+    /* Decide if custom data attributes are okay */
+    let ALLOW_DATA_ATTR = true;
+    /* Decide if unknown protocols are okay */
+    let ALLOW_UNKNOWN_PROTOCOLS = false;
+    /* Decide if self-closing tags in attributes are allowed.
+     * Usually removed due to a mXSS issue in jQuery 3.0 */
+    let ALLOW_SELF_CLOSE_IN_ATTR = true;
+    /* Output should be safe for common template engines.
+     * This means, DOMPurify removes data attributes, mustaches and ERB
+     */
+    let SAFE_FOR_TEMPLATES = false;
+    /* Output should be safe even for XML used within HTML and alike.
+     * This means, DOMPurify removes comments when containing risky content.
+     */
+    let SAFE_FOR_XML = true;
+    /* Decide if document with <html>... should be returned */
+    let WHOLE_DOCUMENT = false;
+    /* Track whether config is already set on this instance of DOMPurify. */
+    let SET_CONFIG = false;
+    /* Decide if all elements (e.g. style, script) must be children of
+     * document.body. By default, browsers might move them to document.head */
+    let FORCE_BODY = false;
+    /* Decide if a DOM `HTMLBodyElement` should be returned, instead of a html
+     * string (or a TrustedHTML object if Trusted Types are supported).
+     * If `WHOLE_DOCUMENT` is enabled a `HTMLHtmlElement` will be returned instead
+     */
+    let RETURN_DOM = false;
+    /* Decide if a DOM `DocumentFragment` should be returned, instead of a html
+     * string  (or a TrustedHTML object if Trusted Types are supported) */
+    let RETURN_DOM_FRAGMENT = false;
+    /* Try to return a Trusted Type object instead of a string, return a string in
+     * case Trusted Types are not supported  */
+    let RETURN_TRUSTED_TYPE = false;
+    /* Output should be free from DOM clobbering attacks?
+     * This sanitizes markups named with colliding, clobberable built-in DOM APIs.
+     */
+    let SANITIZE_DOM = true;
+    /* Achieve full DOM Clobbering protection by isolating the namespace of named
+     * properties and JS variables, mitigating attacks that abuse the HTML/DOM spec rules.
+     *
+     * HTML/DOM spec rules that enable DOM Clobbering:
+     *   - Named Access on Window (§7.3.3)
+     *   - DOM Tree Accessors (§3.1.5)
+     *   - Form Element Parent-Child Relations (§4.10.3)
+     *   - Iframe srcdoc / Nested WindowProxies (§4.8.5)
+     *   - HTMLCollection (§4.2.10.2)
+     *
+     * Namespace isolation is implemented by prefixing `id` and `name` attributes
+     * with a constant string, i.e., `user-content-`
+     */
+    let SANITIZE_NAMED_PROPS = false;
+    const SANITIZE_NAMED_PROPS_PREFIX = 'user-content-';
+    /* Keep element content when removing element? */
+    let KEEP_CONTENT = true;
+    /* If a `Node` is passed to sanitize(), then performs sanitization in-place instead
+     * of importing it into a new Document and returning a sanitized copy */
+    let IN_PLACE = false;
+    /* Allow usage of profiles like html, svg and mathMl */
+    let USE_PROFILES = {};
+    /* Tags to ignore content of when KEEP_CONTENT is true */
+    let FORBID_CONTENTS = null;
+    const DEFAULT_FORBID_CONTENTS = addToSet({}, ['annotation-xml', 'audio', 'colgroup', 'desc', 'foreignobject', 'head', 'iframe', 'math', 'mi', 'mn', 'mo', 'ms', 'mtext', 'noembed', 'noframes', 'noscript', 'plaintext', 'script', 'style', 'svg', 'template', 'thead', 'title', 'video', 'xmp']);
+    /* Tags that are safe for data: URIs */
+    let DATA_URI_TAGS = null;
+    const DEFAULT_DATA_URI_TAGS = addToSet({}, ['audio', 'video', 'img', 'source', 'image', 'track']);
+    /* Attributes safe for values like "javascript:" */
+    let URI_SAFE_ATTRIBUTES = null;
+    const DEFAULT_URI_SAFE_ATTRIBUTES = addToSet({}, ['alt', 'class', 'for', 'id', 'label', 'name', 'pattern', 'placeholder', 'role', 'summary', 'title', 'value', 'style', 'xmlns']);
+    const MATHML_NAMESPACE = 'http://www.w3.org/1998/Math/MathML';
+    const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+    const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+    /* Document namespace */
+    let NAMESPACE = HTML_NAMESPACE;
+    let IS_EMPTY_INPUT = false;
+    /* Allowed XHTML+XML namespaces */
+    let ALLOWED_NAMESPACES = null;
+    const DEFAULT_ALLOWED_NAMESPACES = addToSet({}, [MATHML_NAMESPACE, SVG_NAMESPACE, HTML_NAMESPACE], stringToString);
+    let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, ['mi', 'mo', 'mn', 'ms', 'mtext']);
+    let HTML_INTEGRATION_POINTS = addToSet({}, ['annotation-xml']);
+    // Certain elements are allowed in both SVG and HTML
+    // namespace. We need to specify them explicitly
+    // so that they don't get erroneously deleted from
+    // HTML namespace.
+    const COMMON_SVG_AND_HTML_ELEMENTS = addToSet({}, ['title', 'style', 'font', 'a', 'script']);
+    /* Parsing of strict XHTML documents */
+    let PARSER_MEDIA_TYPE = null;
+    const SUPPORTED_PARSER_MEDIA_TYPES = ['application/xhtml+xml', 'text/html'];
+    const DEFAULT_PARSER_MEDIA_TYPE = 'text/html';
+    let transformCaseFunc = null;
+    /* Keep a reference to config to pass to hooks */
+    let CONFIG = null;
+    /* Ideally, do not touch anything below this line */
+    /* ______________________________________________ */
+    const formElement = document.createElement('form');
+    const isRegexOrFunction = function isRegexOrFunction(testValue) {
+      return testValue instanceof RegExp || testValue instanceof Function;
+    };
+    /**
+     * _parseConfig
+     *
+     * @param cfg optional config literal
+     */
+    // eslint-disable-next-line complexity
+    const _parseConfig = function _parseConfig() {
+      let cfg = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+      if (CONFIG && CONFIG === cfg) {
+        return;
+      }
+      /* Shield configuration object from tampering */
+      if (!cfg || typeof cfg !== 'object') {
+        cfg = {};
+      }
+      /* Shield configuration object from prototype pollution */
+      cfg = clone(cfg);
+      PARSER_MEDIA_TYPE =
+      // eslint-disable-next-line unicorn/prefer-includes
+      SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
+      // HTML tags and attributes are not case-sensitive, converting to lowercase. Keeping XHTML as is.
+      transformCaseFunc = PARSER_MEDIA_TYPE === 'application/xhtml+xml' ? stringToString : stringToLowerCase;
+      /* Set configuration parameters */
+      ALLOWED_TAGS = objectHasOwnProperty(cfg, 'ALLOWED_TAGS') ? addToSet({}, cfg.ALLOWED_TAGS, transformCaseFunc) : DEFAULT_ALLOWED_TAGS;
+      ALLOWED_ATTR = objectHasOwnProperty(cfg, 'ALLOWED_ATTR') ? addToSet({}, cfg.ALLOWED_ATTR, transformCaseFunc) : DEFAULT_ALLOWED_ATTR;
+      ALLOWED_NAMESPACES = objectHasOwnProperty(cfg, 'ALLOWED_NAMESPACES') ? addToSet({}, cfg.ALLOWED_NAMESPACES, stringToString) : DEFAULT_ALLOWED_NAMESPACES;
+      URI_SAFE_ATTRIBUTES = objectHasOwnProperty(cfg, 'ADD_URI_SAFE_ATTR') ? addToSet(clone(DEFAULT_URI_SAFE_ATTRIBUTES), cfg.ADD_URI_SAFE_ATTR, transformCaseFunc) : DEFAULT_URI_SAFE_ATTRIBUTES;
+      DATA_URI_TAGS = objectHasOwnProperty(cfg, 'ADD_DATA_URI_TAGS') ? addToSet(clone(DEFAULT_DATA_URI_TAGS), cfg.ADD_DATA_URI_TAGS, transformCaseFunc) : DEFAULT_DATA_URI_TAGS;
+      FORBID_CONTENTS = objectHasOwnProperty(cfg, 'FORBID_CONTENTS') ? addToSet({}, cfg.FORBID_CONTENTS, transformCaseFunc) : DEFAULT_FORBID_CONTENTS;
+      FORBID_TAGS = objectHasOwnProperty(cfg, 'FORBID_TAGS') ? addToSet({}, cfg.FORBID_TAGS, transformCaseFunc) : clone({});
+      FORBID_ATTR = objectHasOwnProperty(cfg, 'FORBID_ATTR') ? addToSet({}, cfg.FORBID_ATTR, transformCaseFunc) : clone({});
+      USE_PROFILES = objectHasOwnProperty(cfg, 'USE_PROFILES') ? cfg.USE_PROFILES : false;
+      ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false; // Default true
+      ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false; // Default true
+      ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false; // Default false
+      ALLOW_SELF_CLOSE_IN_ATTR = cfg.ALLOW_SELF_CLOSE_IN_ATTR !== false; // Default true
+      SAFE_FOR_TEMPLATES = cfg.SAFE_FOR_TEMPLATES || false; // Default false
+      SAFE_FOR_XML = cfg.SAFE_FOR_XML !== false; // Default true
+      WHOLE_DOCUMENT = cfg.WHOLE_DOCUMENT || false; // Default false
+      RETURN_DOM = cfg.RETURN_DOM || false; // Default false
+      RETURN_DOM_FRAGMENT = cfg.RETURN_DOM_FRAGMENT || false; // Default false
+      RETURN_TRUSTED_TYPE = cfg.RETURN_TRUSTED_TYPE || false; // Default false
+      FORCE_BODY = cfg.FORCE_BODY || false; // Default false
+      SANITIZE_DOM = cfg.SANITIZE_DOM !== false; // Default true
+      SANITIZE_NAMED_PROPS = cfg.SANITIZE_NAMED_PROPS || false; // Default false
+      KEEP_CONTENT = cfg.KEEP_CONTENT !== false; // Default true
+      IN_PLACE = cfg.IN_PLACE || false; // Default false
+      IS_ALLOWED_URI$1 = cfg.ALLOWED_URI_REGEXP || IS_ALLOWED_URI;
+      NAMESPACE = cfg.NAMESPACE || HTML_NAMESPACE;
+      MATHML_TEXT_INTEGRATION_POINTS = cfg.MATHML_TEXT_INTEGRATION_POINTS || MATHML_TEXT_INTEGRATION_POINTS;
+      HTML_INTEGRATION_POINTS = cfg.HTML_INTEGRATION_POINTS || HTML_INTEGRATION_POINTS;
+      CUSTOM_ELEMENT_HANDLING = cfg.CUSTOM_ELEMENT_HANDLING || {};
+      if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck)) {
+        CUSTOM_ELEMENT_HANDLING.tagNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck;
+      }
+      if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck)) {
+        CUSTOM_ELEMENT_HANDLING.attributeNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck;
+      }
+      if (cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements === 'boolean') {
+        CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements;
+      }
+      if (SAFE_FOR_TEMPLATES) {
+        ALLOW_DATA_ATTR = false;
+      }
+      if (RETURN_DOM_FRAGMENT) {
+        RETURN_DOM = true;
+      }
+      /* Parse profile info */
+      if (USE_PROFILES) {
+        ALLOWED_TAGS = addToSet({}, text);
+        ALLOWED_ATTR = [];
+        if (USE_PROFILES.html === true) {
+          addToSet(ALLOWED_TAGS, html$1);
+          addToSet(ALLOWED_ATTR, html);
+        }
+        if (USE_PROFILES.svg === true) {
+          addToSet(ALLOWED_TAGS, svg$1);
+          addToSet(ALLOWED_ATTR, svg);
+          addToSet(ALLOWED_ATTR, xml);
+        }
+        if (USE_PROFILES.svgFilters === true) {
+          addToSet(ALLOWED_TAGS, svgFilters);
+          addToSet(ALLOWED_ATTR, svg);
+          addToSet(ALLOWED_ATTR, xml);
+        }
+        if (USE_PROFILES.mathMl === true) {
+          addToSet(ALLOWED_TAGS, mathMl$1);
+          addToSet(ALLOWED_ATTR, mathMl);
+          addToSet(ALLOWED_ATTR, xml);
+        }
+      }
+      /* Merge configuration parameters */
+      if (cfg.ADD_TAGS) {
+        if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) {
+          ALLOWED_TAGS = clone(ALLOWED_TAGS);
+        }
+        addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
+      }
+      if (cfg.ADD_ATTR) {
+        if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) {
+          ALLOWED_ATTR = clone(ALLOWED_ATTR);
+        }
+        addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
+      }
+      if (cfg.ADD_URI_SAFE_ATTR) {
+        addToSet(URI_SAFE_ATTRIBUTES, cfg.ADD_URI_SAFE_ATTR, transformCaseFunc);
+      }
+      if (cfg.FORBID_CONTENTS) {
+        if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
+          FORBID_CONTENTS = clone(FORBID_CONTENTS);
+        }
+        addToSet(FORBID_CONTENTS, cfg.FORBID_CONTENTS, transformCaseFunc);
+      }
+      /* Add #text in case KEEP_CONTENT is set to true */
+      if (KEEP_CONTENT) {
+        ALLOWED_TAGS['#text'] = true;
+      }
+      /* Add html, head and body to ALLOWED_TAGS in case WHOLE_DOCUMENT is true */
+      if (WHOLE_DOCUMENT) {
+        addToSet(ALLOWED_TAGS, ['html', 'head', 'body']);
+      }
+      /* Add tbody to ALLOWED_TAGS in case tables are permitted, see #286, #365 */
+      if (ALLOWED_TAGS.table) {
+        addToSet(ALLOWED_TAGS, ['tbody']);
+        delete FORBID_TAGS.tbody;
+      }
+      if (cfg.TRUSTED_TYPES_POLICY) {
+        if (typeof cfg.TRUSTED_TYPES_POLICY.createHTML !== 'function') {
+          throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createHTML" hook.');
+        }
+        if (typeof cfg.TRUSTED_TYPES_POLICY.createScriptURL !== 'function') {
+          throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
+        }
+        // Overwrite existing TrustedTypes policy.
+        trustedTypesPolicy = cfg.TRUSTED_TYPES_POLICY;
+        // Sign local variables required by `sanitize`.
+        emptyHTML = trustedTypesPolicy.createHTML('');
+      } else {
+        // Uninitialized policy, attempt to initialize the internal dompurify policy.
+        if (trustedTypesPolicy === undefined) {
+          trustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+        }
+        // If creating the internal policy succeeded sign internal variables.
+        if (trustedTypesPolicy !== null && typeof emptyHTML === 'string') {
+          emptyHTML = trustedTypesPolicy.createHTML('');
+        }
+      }
+      // Prevent further manipulation of configuration.
+      // Not available in IE8, Safari 5, etc.
+      if (freeze) {
+        freeze(cfg);
+      }
+      CONFIG = cfg;
+    };
+    /* Keep track of all possible SVG and MathML tags
+     * so that we can perform the namespace checks
+     * correctly. */
+    const ALL_SVG_TAGS = addToSet({}, [...svg$1, ...svgFilters, ...svgDisallowed]);
+    const ALL_MATHML_TAGS = addToSet({}, [...mathMl$1, ...mathMlDisallowed]);
+    /**
+     * @param element a DOM element whose namespace is being checked
+     * @returns Return false if the element has a
+     *  namespace that a spec-compliant parser would never
+     *  return. Return true otherwise.
+     */
+    const _checkValidNamespace = function _checkValidNamespace(element) {
+      let parent = getParentNode(element);
+      // In JSDOM, if we're inside shadow DOM, then parentNode
+      // can be null. We just simulate parent in this case.
+      if (!parent || !parent.tagName) {
+        parent = {
+          namespaceURI: NAMESPACE,
+          tagName: 'template'
+        };
+      }
+      const tagName = stringToLowerCase(element.tagName);
+      const parentTagName = stringToLowerCase(parent.tagName);
+      if (!ALLOWED_NAMESPACES[element.namespaceURI]) {
+        return false;
+      }
+      if (element.namespaceURI === SVG_NAMESPACE) {
+        // The only way to switch from HTML namespace to SVG
+        // is via <svg>. If it happens via any other tag, then
+        // it should be killed.
+        if (parent.namespaceURI === HTML_NAMESPACE) {
+          return tagName === 'svg';
+        }
+        // The only way to switch from MathML to SVG is via`
+        // svg if parent is either <annotation-xml> or MathML
+        // text integration points.
+        if (parent.namespaceURI === MATHML_NAMESPACE) {
+          return tagName === 'svg' && (parentTagName === 'annotation-xml' || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
+        }
+        // We only allow elements that are defined in SVG
+        // spec. All others are disallowed in SVG namespace.
+        return Boolean(ALL_SVG_TAGS[tagName]);
+      }
+      if (element.namespaceURI === MATHML_NAMESPACE) {
+        // The only way to switch from HTML namespace to MathML
+        // is via <math>. If it happens via any other tag, then
+        // it should be killed.
+        if (parent.namespaceURI === HTML_NAMESPACE) {
+          return tagName === 'math';
+        }
+        // The only way to switch from SVG to MathML is via
+        // <math> and HTML integration points
+        if (parent.namespaceURI === SVG_NAMESPACE) {
+          return tagName === 'math' && HTML_INTEGRATION_POINTS[parentTagName];
+        }
+        // We only allow elements that are defined in MathML
+        // spec. All others are disallowed in MathML namespace.
+        return Boolean(ALL_MATHML_TAGS[tagName]);
+      }
+      if (element.namespaceURI === HTML_NAMESPACE) {
+        // The only way to switch from SVG to HTML is via
+        // HTML integration points, and from MathML to HTML
+        // is via MathML text integration points
+        if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
+          return false;
+        }
+        if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
+          return false;
+        }
+        // We disallow tags that are specific for MathML
+        // or SVG and should never appear in HTML namespace
+        return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+      }
+      // For XHTML and XML documents that support custom namespaces
+      if (PARSER_MEDIA_TYPE === 'application/xhtml+xml' && ALLOWED_NAMESPACES[element.namespaceURI]) {
+        return true;
+      }
+      // The code should never reach this place (this means
+      // that the element somehow got namespace that is not
+      // HTML, SVG, MathML or allowed via ALLOWED_NAMESPACES).
+      // Return false just in case.
+      return false;
+    };
+    /**
+     * _forceRemove
+     *
+     * @param node a DOM node
+     */
+    const _forceRemove = function _forceRemove(node) {
+      arrayPush(DOMPurify.removed, {
+        element: node
+      });
+      try {
+        // eslint-disable-next-line unicorn/prefer-dom-node-remove
+        getParentNode(node).removeChild(node);
+      } catch (_) {
+        remove(node);
+      }
+    };
+    /**
+     * _removeAttribute
+     *
+     * @param name an Attribute name
+     * @param element a DOM node
+     */
+    const _removeAttribute = function _removeAttribute(name, element) {
+      try {
+        arrayPush(DOMPurify.removed, {
+          attribute: element.getAttributeNode(name),
+          from: element
+        });
+      } catch (_) {
+        arrayPush(DOMPurify.removed, {
+          attribute: null,
+          from: element
+        });
+      }
+      element.removeAttribute(name);
+      // We void attribute values for unremovable "is" attributes
+      if (name === 'is') {
+        if (RETURN_DOM || RETURN_DOM_FRAGMENT) {
+          try {
+            _forceRemove(element);
+          } catch (_) {}
+        } else {
+          try {
+            element.setAttribute(name, '');
+          } catch (_) {}
+        }
+      }
+    };
+    /**
+     * _initDocument
+     *
+     * @param dirty - a string of dirty markup
+     * @return a DOM, filled with the dirty markup
+     */
+    const _initDocument = function _initDocument(dirty) {
+      /* Create a HTML document */
+      let doc = null;
+      let leadingWhitespace = null;
+      if (FORCE_BODY) {
+        dirty = '<remove></remove>' + dirty;
+      } else {
+        /* If FORCE_BODY isn't used, leading whitespace needs to be preserved manually */
+        const matches = stringMatch(dirty, /^[\r\n\t ]+/);
+        leadingWhitespace = matches && matches[0];
+      }
+      if (PARSER_MEDIA_TYPE === 'application/xhtml+xml' && NAMESPACE === HTML_NAMESPACE) {
+        // Root of XHTML doc must contain xmlns declaration (see https://www.w3.org/TR/xhtml1/normative.html#strict)
+        dirty = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + dirty + '</body></html>';
+      }
+      const dirtyPayload = trustedTypesPolicy ? trustedTypesPolicy.createHTML(dirty) : dirty;
+      /*
+       * Use the DOMParser API by default, fallback later if needs be
+       * DOMParser not work for svg when has multiple root element.
+       */
+      if (NAMESPACE === HTML_NAMESPACE) {
+        try {
+          doc = new DOMParser().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
+        } catch (_) {}
+      }
+      /* Use createHTMLDocument in case DOMParser is not available */
+      if (!doc || !doc.documentElement) {
+        doc = implementation.createDocument(NAMESPACE, 'template', null);
+        try {
+          doc.documentElement.innerHTML = IS_EMPTY_INPUT ? emptyHTML : dirtyPayload;
+        } catch (_) {
+          // Syntax error if dirtyPayload is invalid xml
+        }
+      }
+      const body = doc.body || doc.documentElement;
+      if (dirty && leadingWhitespace) {
+        body.insertBefore(document.createTextNode(leadingWhitespace), body.childNodes[0] || null);
+      }
+      /* Work on whole document or just its body */
+      if (NAMESPACE === HTML_NAMESPACE) {
+        return getElementsByTagName.call(doc, WHOLE_DOCUMENT ? 'html' : 'body')[0];
+      }
+      return WHOLE_DOCUMENT ? doc.documentElement : body;
+    };
+    /**
+     * Creates a NodeIterator object that you can use to traverse filtered lists of nodes or elements in a document.
+     *
+     * @param root The root element or node to start traversing on.
+     * @return The created NodeIterator
+     */
+    const _createNodeIterator = function _createNodeIterator(root) {
+      return createNodeIterator.call(root.ownerDocument || root, root,
+      // eslint-disable-next-line no-bitwise
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
+    };
+    /**
+     * _isClobbered
+     *
+     * @param element element to check for clobbering attacks
+     * @return true if clobbered, false if safe
+     */
+    const _isClobbered = function _isClobbered(element) {
+      return element instanceof HTMLFormElement && (typeof element.nodeName !== 'string' || typeof element.textContent !== 'string' || typeof element.removeChild !== 'function' || !(element.attributes instanceof NamedNodeMap) || typeof element.removeAttribute !== 'function' || typeof element.setAttribute !== 'function' || typeof element.namespaceURI !== 'string' || typeof element.insertBefore !== 'function' || typeof element.hasChildNodes !== 'function');
+    };
+    /**
+     * Checks whether the given object is a DOM node.
+     *
+     * @param value object to check whether it's a DOM node
+     * @return true is object is a DOM node
+     */
+    const _isNode = function _isNode(value) {
+      return typeof Node === 'function' && value instanceof Node;
+    };
+    function _executeHooks(hooks, currentNode, data) {
+      arrayForEach(hooks, hook => {
+        hook.call(DOMPurify, currentNode, data, CONFIG);
+      });
+    }
+    /**
+     * _sanitizeElements
+     *
+     * @protect nodeName
+     * @protect textContent
+     * @protect removeChild
+     * @param currentNode to check for permission to exist
+     * @return true if node was killed, false if left alive
+     */
+    const _sanitizeElements = function _sanitizeElements(currentNode) {
+      let content = null;
+      /* Execute a hook if present */
+      _executeHooks(hooks.beforeSanitizeElements, currentNode, null);
+      /* Check if element is clobbered or can clobber */
+      if (_isClobbered(currentNode)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Now let's check the element's type and name */
+      const tagName = transformCaseFunc(currentNode.nodeName);
+      /* Execute a hook if present */
+      _executeHooks(hooks.uponSanitizeElement, currentNode, {
+        tagName,
+        allowedTags: ALLOWED_TAGS
+      });
+      /* Detect mXSS attempts abusing namespace confusion */
+      if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(/<[/\w!]/g, currentNode.innerHTML) && regExpTest(/<[/\w!]/g, currentNode.textContent)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Remove any occurrence of processing instructions */
+      if (currentNode.nodeType === NODE_TYPE.progressingInstruction) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Remove any kind of possibly harmful comments */
+      if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(/<[/\w]/g, currentNode.data)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Remove element if anything forbids its presence */
+      if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+        /* Check if we have a custom element to handle */
+        if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
+          if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) {
+            return false;
+          }
+          if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) {
+            return false;
+          }
+        }
+        /* Keep content except for bad-listed elements */
+        if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
+          const parentNode = getParentNode(currentNode) || currentNode.parentNode;
+          const childNodes = getChildNodes(currentNode) || currentNode.childNodes;
+          if (childNodes && parentNode) {
+            const childCount = childNodes.length;
+            for (let i = childCount - 1; i >= 0; --i) {
+              const childClone = cloneNode(childNodes[i], true);
+              childClone.__removalCount = (currentNode.__removalCount || 0) + 1;
+              parentNode.insertBefore(childClone, getNextSibling(currentNode));
+            }
+          }
+        }
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Check whether element has a valid namespace */
+      if (currentNode instanceof Element && !_checkValidNamespace(currentNode)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Make sure that older browsers don't get fallback-tag mXSS */
+      if ((tagName === 'noscript' || tagName === 'noembed' || tagName === 'noframes') && regExpTest(/<\/no(script|embed|frames)/i, currentNode.innerHTML)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Sanitize element content to be template-safe */
+      if (SAFE_FOR_TEMPLATES && currentNode.nodeType === NODE_TYPE.text) {
+        /* Get the element's text content */
+        content = currentNode.textContent;
+        arrayForEach([MUSTACHE_EXPR, ERB_EXPR, TMPLIT_EXPR], expr => {
+          content = stringReplace(content, expr, ' ');
+        });
+        if (currentNode.textContent !== content) {
+          arrayPush(DOMPurify.removed, {
+            element: currentNode.cloneNode()
+          });
+          currentNode.textContent = content;
+        }
+      }
+      /* Execute a hook if present */
+      _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+      return false;
+    };
+    /**
+     * _isValidAttribute
+     *
+     * @param lcTag Lowercase tag name of containing element.
+     * @param lcName Lowercase attribute name.
+     * @param value Attribute value.
+     * @return Returns true if `value` is valid, otherwise false.
+     */
+    // eslint-disable-next-line complexity
+    const _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
+      /* Make sure attribute cannot clobber */
+      if (SANITIZE_DOM && (lcName === 'id' || lcName === 'name') && (value in document || value in formElement)) {
+        return false;
+      }
+      /* Allow valid data-* attributes: At least one character after "-"
+          (https://html.spec.whatwg.org/multipage/dom.html#embedding-custom-non-visible-data-with-the-data-*-attributes)
+          XML-compatible (https://html.spec.whatwg.org/multipage/infrastructure.html#xml-compatible and http://www.w3.org/TR/xml/#d0e804)
+          We don't need to check the value; it's always URI safe. */
+      if (ALLOW_DATA_ATTR && !FORBID_ATTR[lcName] && regExpTest(DATA_ATTR, lcName)) ;else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR, lcName)) ;else if (!ALLOWED_ATTR[lcName] || FORBID_ATTR[lcName]) {
+        if (
+        // First condition does a very basic check if a) it's basically a valid custom element tagname AND
+        // b) if the tagName passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
+        // and c) if the attribute name passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.attributeNameCheck
+        _isBasicCustomElement(lcTag) && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(lcTag)) && (CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName) || CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.attributeNameCheck(lcName, lcTag)) ||
+        // Alternative, second condition checks if it's an `is`-attribute, AND
+        // the value passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
+        lcName === 'is' && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(value))) ;else {
+          return false;
+        }
+        /* Check value is safe. First, is attr inert? If so, is safe */
+      } else if (URI_SAFE_ATTRIBUTES[lcName]) ;else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE, ''))) ;else if ((lcName === 'src' || lcName === 'xlink:href' || lcName === 'href') && lcTag !== 'script' && stringIndexOf(value, 'data:') === 0 && DATA_URI_TAGS[lcTag]) ;else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA, stringReplace(value, ATTR_WHITESPACE, ''))) ;else if (value) {
+        return false;
+      } else ;
+      return true;
+    };
+    /**
+     * _isBasicCustomElement
+     * checks if at least one dash is included in tagName, and it's not the first char
+     * for more sophisticated checking see https://github.com/sindresorhus/validate-element-name
+     *
+     * @param tagName name of the tag of the node to sanitize
+     * @returns Returns true if the tag name meets the basic criteria for a custom element, otherwise false.
+     */
+    const _isBasicCustomElement = function _isBasicCustomElement(tagName) {
+      return tagName !== 'annotation-xml' && stringMatch(tagName, CUSTOM_ELEMENT);
+    };
+    /**
+     * _sanitizeAttributes
+     *
+     * @protect attributes
+     * @protect nodeName
+     * @protect removeAttribute
+     * @protect setAttribute
+     *
+     * @param currentNode to sanitize
+     */
+    const _sanitizeAttributes = function _sanitizeAttributes(currentNode) {
+      /* Execute a hook if present */
+      _executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
+      const {
+        attributes
+      } = currentNode;
+      /* Check if we have attributes; if not we might have a text node */
+      if (!attributes || _isClobbered(currentNode)) {
+        return;
+      }
+      const hookEvent = {
+        attrName: '',
+        attrValue: '',
+        keepAttr: true,
+        allowedAttributes: ALLOWED_ATTR,
+        forceKeepAttr: undefined
+      };
+      let l = attributes.length;
+      /* Go backwards over all attributes; safely remove bad ones */
+      while (l--) {
+        const attr = attributes[l];
+        const {
+          name,
+          namespaceURI,
+          value: attrValue
+        } = attr;
+        const lcName = transformCaseFunc(name);
+        const initValue = attrValue;
+        let value = name === 'value' ? initValue : stringTrim(initValue);
+        /* Execute a hook if present */
+        hookEvent.attrName = lcName;
+        hookEvent.attrValue = value;
+        hookEvent.keepAttr = true;
+        hookEvent.forceKeepAttr = undefined; // Allows developers to see this is a property they can set
+        _executeHooks(hooks.uponSanitizeAttribute, currentNode, hookEvent);
+        value = hookEvent.attrValue;
+        /* Full DOM Clobbering protection via namespace isolation,
+         * Prefix id and name attributes with `user-content-`
+         */
+        if (SANITIZE_NAMED_PROPS && (lcName === 'id' || lcName === 'name')) {
+          // Remove the attribute with this value
+          _removeAttribute(name, currentNode);
+          // Prefix the value and later re-create the attribute with the sanitized value
+          value = SANITIZE_NAMED_PROPS_PREFIX + value;
+        }
+        /* Work around a security issue with comments inside attributes */
+        if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|title|textarea)/i, value)) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Make sure we cannot easily use animated hrefs, even if animations are allowed */
+        if (lcName === 'attributename' && stringMatch(value, 'href')) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Did the hooks approve of the attribute? */
+        if (hookEvent.forceKeepAttr) {
+          continue;
+        }
+        /* Did the hooks approve of the attribute? */
+        if (!hookEvent.keepAttr) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Work around a security issue in jQuery 3.0 */
+        if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(/\/>/i, value)) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Sanitize attribute content to be template-safe */
+        if (SAFE_FOR_TEMPLATES) {
+          arrayForEach([MUSTACHE_EXPR, ERB_EXPR, TMPLIT_EXPR], expr => {
+            value = stringReplace(value, expr, ' ');
+          });
+        }
+        /* Is `value` valid for this attribute? */
+        const lcTag = transformCaseFunc(currentNode.nodeName);
+        if (!_isValidAttribute(lcTag, lcName, value)) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Handle attributes that require Trusted Types */
+        if (trustedTypesPolicy && typeof trustedTypes === 'object' && typeof trustedTypes.getAttributeType === 'function') {
+          if (namespaceURI) ;else {
+            switch (trustedTypes.getAttributeType(lcTag, lcName)) {
+              case 'TrustedHTML':
+                {
+                  value = trustedTypesPolicy.createHTML(value);
+                  break;
+                }
+              case 'TrustedScriptURL':
+                {
+                  value = trustedTypesPolicy.createScriptURL(value);
+                  break;
+                }
+            }
+          }
+        }
+        /* Handle invalid data-* attribute set by try-catching it */
+        if (value !== initValue) {
+          try {
+            if (namespaceURI) {
+              currentNode.setAttributeNS(namespaceURI, name, value);
+            } else {
+              /* Fallback to setAttribute() for browser-unrecognized namespaces e.g. "x-schema". */
+              currentNode.setAttribute(name, value);
+            }
+            if (_isClobbered(currentNode)) {
+              _forceRemove(currentNode);
+            } else {
+              arrayPop(DOMPurify.removed);
+            }
+          } catch (_) {
+            _removeAttribute(name, currentNode);
+          }
+        }
+      }
+      /* Execute a hook if present */
+      _executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
+    };
+    /**
+     * _sanitizeShadowDOM
+     *
+     * @param fragment to iterate over recursively
+     */
+    const _sanitizeShadowDOM = function _sanitizeShadowDOM(fragment) {
+      let shadowNode = null;
+      const shadowIterator = _createNodeIterator(fragment);
+      /* Execute a hook if present */
+      _executeHooks(hooks.beforeSanitizeShadowDOM, fragment, null);
+      while (shadowNode = shadowIterator.nextNode()) {
+        /* Execute a hook if present */
+        _executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
+        /* Sanitize tags and elements */
+        _sanitizeElements(shadowNode);
+        /* Check attributes next */
+        _sanitizeAttributes(shadowNode);
+        /* Deep shadow DOM detected */
+        if (shadowNode.content instanceof DocumentFragment) {
+          _sanitizeShadowDOM(shadowNode.content);
+        }
+      }
+      /* Execute a hook if present */
+      _executeHooks(hooks.afterSanitizeShadowDOM, fragment, null);
+    };
+    // eslint-disable-next-line complexity
+    DOMPurify.sanitize = function (dirty) {
+      let cfg = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      let body = null;
+      let importedNode = null;
+      let currentNode = null;
+      let returnNode = null;
+      /* Make sure we have a string to sanitize.
+        DO NOT return early, as this will return the wrong type if
+        the user has requested a DOM object rather than a string */
+      IS_EMPTY_INPUT = !dirty;
+      if (IS_EMPTY_INPUT) {
+        dirty = '<!-->';
+      }
+      /* Stringify, in case dirty is an object */
+      if (typeof dirty !== 'string' && !_isNode(dirty)) {
+        if (typeof dirty.toString === 'function') {
+          dirty = dirty.toString();
+          if (typeof dirty !== 'string') {
+            throw typeErrorCreate('dirty is not a string, aborting');
+          }
+        } else {
+          throw typeErrorCreate('toString is not a function');
+        }
+      }
+      /* Return dirty HTML if DOMPurify cannot run */
+      if (!DOMPurify.isSupported) {
+        return dirty;
+      }
+      /* Assign config vars */
+      if (!SET_CONFIG) {
+        _parseConfig(cfg);
+      }
+      /* Clean up removed elements */
+      DOMPurify.removed = [];
+      /* Check if dirty is correctly typed for IN_PLACE */
+      if (typeof dirty === 'string') {
+        IN_PLACE = false;
+      }
+      if (IN_PLACE) {
+        /* Do some early pre-sanitization to avoid unsafe root nodes */
+        if (dirty.nodeName) {
+          const tagName = transformCaseFunc(dirty.nodeName);
+          if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+            throw typeErrorCreate('root node is forbidden and cannot be sanitized in-place');
+          }
+        }
+      } else if (dirty instanceof Node) {
+        /* If dirty is a DOM element, append to an empty document to avoid
+           elements being stripped by the parser */
+        body = _initDocument('<!---->');
+        importedNode = body.ownerDocument.importNode(dirty, true);
+        if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === 'BODY') {
+          /* Node is already a body, use as is */
+          body = importedNode;
+        } else if (importedNode.nodeName === 'HTML') {
+          body = importedNode;
+        } else {
+          // eslint-disable-next-line unicorn/prefer-dom-node-append
+          body.appendChild(importedNode);
+        }
+      } else {
+        /* Exit directly if we have nothing to do */
+        if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT &&
+        // eslint-disable-next-line unicorn/prefer-includes
+        dirty.indexOf('<') === -1) {
+          return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(dirty) : dirty;
+        }
+        /* Initialize the document to work on */
+        body = _initDocument(dirty);
+        /* Check we have a DOM node from the data */
+        if (!body) {
+          return RETURN_DOM ? null : RETURN_TRUSTED_TYPE ? emptyHTML : '';
+        }
+      }
+      /* Remove first element node (ours) if FORCE_BODY is set */
+      if (body && FORCE_BODY) {
+        _forceRemove(body.firstChild);
+      }
+      /* Get node iterator */
+      const nodeIterator = _createNodeIterator(IN_PLACE ? dirty : body);
+      /* Now start iterating over the created document */
+      while (currentNode = nodeIterator.nextNode()) {
+        /* Sanitize tags and elements */
+        _sanitizeElements(currentNode);
+        /* Check attributes next */
+        _sanitizeAttributes(currentNode);
+        /* Shadow DOM detected, sanitize it */
+        if (currentNode.content instanceof DocumentFragment) {
+          _sanitizeShadowDOM(currentNode.content);
+        }
+      }
+      /* If we sanitized `dirty` in-place, return it. */
+      if (IN_PLACE) {
+        return dirty;
+      }
+      /* Return sanitized string or DOM */
+      if (RETURN_DOM) {
+        if (RETURN_DOM_FRAGMENT) {
+          returnNode = createDocumentFragment.call(body.ownerDocument);
+          while (body.firstChild) {
+            // eslint-disable-next-line unicorn/prefer-dom-node-append
+            returnNode.appendChild(body.firstChild);
+          }
+        } else {
+          returnNode = body;
+        }
+        if (ALLOWED_ATTR.shadowroot || ALLOWED_ATTR.shadowrootmode) {
+          /*
+            AdoptNode() is not used because internal state is not reset
+            (e.g. the past names map of a HTMLFormElement), this is safe
+            in theory but we would rather not risk another attack vector.
+            The state that is cloned by importNode() is explicitly defined
+            by the specs.
+          */
+          returnNode = importNode.call(originalDocument, returnNode, true);
+        }
+        return returnNode;
+      }
+      let serializedHTML = WHOLE_DOCUMENT ? body.outerHTML : body.innerHTML;
+      /* Serialize doctype if allowed */
+      if (WHOLE_DOCUMENT && ALLOWED_TAGS['!doctype'] && body.ownerDocument && body.ownerDocument.doctype && body.ownerDocument.doctype.name && regExpTest(DOCTYPE_NAME, body.ownerDocument.doctype.name)) {
+        serializedHTML = '<!DOCTYPE ' + body.ownerDocument.doctype.name + '>\n' + serializedHTML;
+      }
+      /* Sanitize final string template-safe */
+      if (SAFE_FOR_TEMPLATES) {
+        arrayForEach([MUSTACHE_EXPR, ERB_EXPR, TMPLIT_EXPR], expr => {
+          serializedHTML = stringReplace(serializedHTML, expr, ' ');
+        });
+      }
+      return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(serializedHTML) : serializedHTML;
+    };
+    DOMPurify.setConfig = function () {
+      let cfg = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+      _parseConfig(cfg);
+      SET_CONFIG = true;
+    };
+    DOMPurify.clearConfig = function () {
+      CONFIG = null;
+      SET_CONFIG = false;
+    };
+    DOMPurify.isValidAttribute = function (tag, attr, value) {
+      /* Initialize shared config vars if necessary. */
+      if (!CONFIG) {
+        _parseConfig({});
+      }
+      const lcTag = transformCaseFunc(tag);
+      const lcName = transformCaseFunc(attr);
+      return _isValidAttribute(lcTag, lcName, value);
+    };
+    DOMPurify.addHook = function (entryPoint, hookFunction) {
+      if (typeof hookFunction !== 'function') {
+        return;
+      }
+      arrayPush(hooks[entryPoint], hookFunction);
+    };
+    DOMPurify.removeHook = function (entryPoint, hookFunction) {
+      if (hookFunction !== undefined) {
+        const index = arrayLastIndexOf(hooks[entryPoint], hookFunction);
+        return index === -1 ? undefined : arraySplice(hooks[entryPoint], index, 1)[0];
+      }
+      return arrayPop(hooks[entryPoint]);
+    };
+    DOMPurify.removeHooks = function (entryPoint) {
+      hooks[entryPoint] = [];
+    };
+    DOMPurify.removeAllHooks = function () {
+      hooks = _createHooksMap();
+    };
+    return DOMPurify;
+  }
+  var purify = createDOMPurify();
+
+  purify.addHook("uponSanitizeAttribute", function (node, data) {
+    const allowedAttributePattern = /^data-trix-/;
+    if (allowedAttributePattern.test(data.attrName)) {
+      data.forceKeepAttr = true;
+    }
+  });
+  const DEFAULT_ALLOWED_ATTRIBUTES = "style href src width height language class".split(" ");
+  const DEFAULT_FORBIDDEN_PROTOCOLS = "javascript:".split(" ");
+  const DEFAULT_FORBIDDEN_ELEMENTS = "script iframe form noscript".split(" ");
+  class HTMLSanitizer extends BasicObject {
+    static setHTML(element, html, options) {
+      const sanitizedElement = new this(html, options).sanitize();
+      const sanitizedHtml = sanitizedElement.getHTML ? sanitizedElement.getHTML() : sanitizedElement.outerHTML;
+      element.innerHTML = sanitizedHtml;
+    }
+    static sanitize(html, options) {
+      const sanitizer = new this(html, options);
+      sanitizer.sanitize();
+      return sanitizer;
+    }
+    constructor(html) {
+      let {
+        allowedAttributes,
+        forbiddenProtocols,
+        forbiddenElements,
+        purifyOptions
+      } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      super(...arguments);
+      this.allowedAttributes = allowedAttributes || DEFAULT_ALLOWED_ATTRIBUTES;
+      this.forbiddenProtocols = forbiddenProtocols || DEFAULT_FORBIDDEN_PROTOCOLS;
+      this.forbiddenElements = forbiddenElements || DEFAULT_FORBIDDEN_ELEMENTS;
+      this.purifyOptions = purifyOptions || {};
+      this.body = createBodyElementForHTML(html);
+    }
+    sanitize() {
+      this.sanitizeElements();
+      this.normalizeListElementNesting();
+      const purifyConfig = Object.assign({}, dompurify, this.purifyOptions);
+      purify.setConfig(purifyConfig);
+      this.body = purify.sanitize(this.body);
+      return this.body;
+    }
+    getHTML() {
+      return this.body.innerHTML;
+    }
+    getBody() {
+      return this.body;
+    }
+
+    // Private
+
+    sanitizeElements() {
+      const walker = walkTree(this.body);
+      const nodesToRemove = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        switch (node.nodeType) {
+          case Node.ELEMENT_NODE:
+            if (this.elementIsRemovable(node)) {
+              nodesToRemove.push(node);
+            } else {
+              this.sanitizeElement(node);
+            }
+            break;
+          case Node.COMMENT_NODE:
+            nodesToRemove.push(node);
+            break;
+        }
+      }
+      nodesToRemove.forEach(node => removeNode(node));
+      return this.body;
+    }
+    sanitizeElement(element) {
+      if (element.hasAttribute("href")) {
+        if (this.forbiddenProtocols.includes(element.protocol)) {
+          element.removeAttribute("href");
+        }
+      }
+      Array.from(element.attributes).forEach(_ref => {
+        let {
+          name
+        } = _ref;
+        if (!this.allowedAttributes.includes(name) && name.indexOf("data-trix") !== 0) {
+          element.removeAttribute(name);
+        }
+      });
+      return element;
+    }
+    normalizeListElementNesting() {
+      Array.from(this.body.querySelectorAll("ul,ol")).forEach(listElement => {
+        const previousElement = listElement.previousElementSibling;
+        if (previousElement) {
+          if (tagName(previousElement) === "li") {
+            previousElement.appendChild(listElement);
+          }
+        }
+      });
+      return this.body;
+    }
+    elementIsRemovable(element) {
+      if ((element === null || element === void 0 ? void 0 : element.nodeType) !== Node.ELEMENT_NODE) return;
+      return this.elementIsForbidden(element) || this.elementIsntSerializable(element);
+    }
+    elementIsForbidden(element) {
+      return this.forbiddenElements.includes(tagName(element));
+    }
+    elementIsntSerializable(element) {
+      return element.getAttribute("data-trix-serialize") === "false" && !nodeIsAttachmentElement(element);
+    }
+  }
+  const createBodyElementForHTML = function () {
+    let html = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : "";
+    // Remove everything after </html>
+    html = html.replace(/<\/html[^>]*>[^]*$/i, "</html>");
+    const doc = document.implementation.createHTMLDocument("");
+    doc.documentElement.innerHTML = html;
+    Array.from(doc.head.querySelectorAll("style")).forEach(element => {
+      doc.body.appendChild(element);
+    });
+    return doc.body;
+  };
+
   const {
     css: css$2
   } = config;
@@ -1742,7 +3273,7 @@ $\
         figure.appendChild(innerElement);
       }
       if (this.attachment.hasContent()) {
-        innerElement.innerHTML = this.attachment.getContent();
+        HTMLSanitizer.setHTML(innerElement, this.attachment.getContent());
       } else {
         this.createContentNodes().forEach(node => {
           innerElement.appendChild(node);
@@ -1833,7 +3364,10 @@ $\
     }
     getHref() {
       if (!htmlContainsTagName(this.attachment.getContent(), "a")) {
-        return this.attachment.getHref();
+        const href = this.attachment.getHref();
+        if (href && purify.isValidAttribute("a", "href", href)) {
+          return href;
+        }
       }
     }
     getCaptionConfig() {
@@ -1870,7 +3404,7 @@ $\
   });
   const htmlContainsTagName = function (html, tagName) {
     const div = makeElement("div");
-    div.innerHTML = html || "";
+    HTMLSanitizer.setHTML(div, html || "");
     return div.querySelector(tagName);
   };
 
@@ -1922,11 +3456,15 @@ $\
       }
       const width = this.attachment.getWidth();
       const height = this.attachment.getHeight();
+      const alt = this.attachment.getAttribute("alt");
       if (width != null) {
         image.width = width;
       }
       if (height != null) {
         image.height = height;
+      }
+      if (alt != null) {
+        image.alt = alt;
       }
       const storeKey = ["imageElement", this.attachment.id, image.src, image.width, image.height].join("/");
       image.dataset.trixStoreKey = storeKey;
@@ -2221,11 +3759,21 @@ $\
       return elementsHaveEqualHTML(this.shadowElement, this.element);
     }
     sync() {
+      const render = (element, documentFragment) => {
+        while (element.lastChild) {
+          element.removeChild(element.lastChild);
+        }
+        element.appendChild(documentFragment);
+      };
+      const event = createEvent("trix-before-render", {
+        cancelable: false,
+        attributes: {
+          render
+        }
+      });
+      this.element.dispatchEvent(event);
       const fragment = this.createDocumentFragmentForSync();
-      while (this.element.lastChild) {
-        this.element.removeChild(this.element.lastChild);
-      }
-      this.element.appendChild(fragment);
+      event.render(this.element, fragment);
       return this.didSync();
     }
 
@@ -2393,7 +3941,7 @@ $\
       u,
       f = {
         kind: c,
-        name: l ? "#" + t : t,
+        name: l ? "#" + t : _toPropertyKey(t),
         isStatic: n,
         isPrivate: l
       },
@@ -2431,10 +3979,7 @@ $\
     if (1 === e) {
       if ("object" !== a || null === t) throw new TypeError("accessor decorators must return an object with get, set, or init properties or void 0");
       void 0 !== t.get && old_assertCallable(t.get, "accessor.get"), void 0 !== t.set && old_assertCallable(t.set, "accessor.set"), void 0 !== t.init && old_assertCallable(t.init, "accessor.init"), void 0 !== t.initializer && old_assertCallable(t.initializer, "accessor.initializer");
-    } else if ("function" !== a) {
-      var r;
-      throw r = 0 === e ? "field" : 10 === e ? "class" : "method", new TypeError(r + " decorators must return a function or void 0");
-    }
+    } else if ("function" !== a) throw new TypeError((0 === e ? "field" : 10 === e ? "class" : "method") + " decorators must return a function or void 0");
   }
   function old_getInit(e) {
     var t;
@@ -2447,28 +3992,29 @@ $\
       f,
       p,
       v,
+      y,
       h = a[0];
-    if (n ? c = 0 === o || 1 === o ? {
+    if (n ? (0 === o || 1 === o ? (c = {
       get: a[3],
       set: a[4]
-    } : 3 === o ? {
+    }, u = "get") : 3 === o ? (c = {
       get: a[3]
-    } : 4 === o ? {
+    }, u = "get") : 4 === o ? (c = {
       set: a[3]
-    } : {
+    }, u = "set") : c = {
       value: a[3]
-    } : 0 !== o && (c = Object.getOwnPropertyDescriptor(t, r)), 1 === o ? u = {
+    }, 0 !== o && (1 === o && _setFunctionName(a[4], "#" + r, "set"), _setFunctionName(a[3], "#" + r, u))) : 0 !== o && (c = Object.getOwnPropertyDescriptor(t, r)), 1 === o ? f = {
       get: c.get,
       set: c.set
-    } : 2 === o ? u = c.value : 3 === o ? u = c.get : 4 === o && (u = c.set), "function" == typeof h) void 0 !== (f = old_memberDec(h, r, c, l, s, o, i, n, u)) && (old_assertValidReturnValue(o, f), 0 === o ? d = f : 1 === o ? (d = old_getInit(f), p = f.get || u.get, v = f.set || u.set, u = {
-      get: p,
-      set: v
-    }) : u = f);else for (var y = h.length - 1; y >= 0; y--) {
+    } : 2 === o ? f = c.value : 3 === o ? f = c.get : 4 === o && (f = c.set), "function" == typeof h) void 0 !== (p = old_memberDec(h, r, c, l, s, o, i, n, f)) && (old_assertValidReturnValue(o, p), 0 === o ? d = p : 1 === o ? (d = old_getInit(p), v = p.get || f.get, y = p.set || f.set, f = {
+      get: v,
+      set: y
+    }) : f = p);else for (var m = h.length - 1; m >= 0; m--) {
       var b;
-      if (void 0 !== (f = old_memberDec(h[y], r, c, l, s, o, i, n, u))) old_assertValidReturnValue(o, f), 0 === o ? b = f : 1 === o ? (b = old_getInit(f), p = f.get || u.get, v = f.set || u.set, u = {
-        get: p,
-        set: v
-      }) : u = f, void 0 !== b && (void 0 === d ? d = b : "function" == typeof d ? d = [d, b] : d.push(b));
+      void 0 !== (p = old_memberDec(h[m], r, c, l, s, o, i, n, f)) && (old_assertValidReturnValue(o, p), 0 === o ? b = p : 1 === o ? (b = old_getInit(p), v = p.get || f.get, y = p.set || f.set, f = {
+        get: v,
+        set: y
+      }) : f = p, void 0 !== b && (void 0 === d ? d = b : "function" == typeof d ? d = [d, b] : d.push(b)));
     }
     if (0 === o || 1 === o) {
       if (void 0 === d) d = function (e, t) {
@@ -2480,19 +4026,19 @@ $\
           return a;
         };
       } else {
-        var m = d;
+        var _ = d;
         d = function (e, t) {
-          return m.call(e, t);
+          return _.call(e, t);
         };
       }
       e.push(d);
     }
-    0 !== o && (1 === o ? (c.get = u.get, c.set = u.set) : 2 === o ? c.value = u : 3 === o ? c.get = u : 4 === o && (c.set = u), n ? 1 === o ? (e.push(function (e, t) {
-      return u.get.call(e, t);
+    0 !== o && (1 === o ? (c.get = f.get, c.set = f.set) : 2 === o ? c.value = f : 3 === o ? c.get = f : 4 === o && (c.set = f), n ? 1 === o ? (e.push(function (e, t) {
+      return f.get.call(e, t);
     }), e.push(function (e, t) {
-      return u.set.call(e, t);
-    })) : 2 === o ? e.push(u) : e.push(function (e, t) {
-      return u.call(e, t);
+      return f.set.call(e, t);
+    })) : 2 === o ? e.push(f) : e.push(function (e, t) {
+      return f.call(e, t);
     }) : Object.defineProperty(t, r, c));
   }
   function old_applyMemberDecs(e, t, a, r, o) {
@@ -2503,16 +4049,16 @@ $\
           f,
           p,
           v = d[1],
-          h = d[2],
-          y = d.length > 3,
-          b = v >= 5;
-        if (b ? (u = t, f = r, 0 !== (v -= 5) && (p = n = n || [])) : (u = t.prototype, f = a, 0 !== v && (p = i = i || [])), 0 !== v && !y) {
-          var g = b ? s : l,
-            m = g.get(h) || 0;
-          if (!0 === m || 3 === m && 4 !== v || 4 === m && 3 !== v) throw new Error("Attempted to decorate a public method/accessor that has the same name as a previously decorated public method/accessor. This is not currently supported by the decorators plugin. Property name was: " + h);
-          !m && v > 2 ? g.set(h, v) : g.set(h, !0);
+          y = d[2],
+          h = d.length > 3,
+          m = v >= 5;
+        if (m ? (u = t, f = r, 0 != (v -= 5) && (p = n = n || [])) : (u = t.prototype, f = a, 0 !== v && (p = i = i || [])), 0 !== v && !h) {
+          var b = m ? s : l,
+            g = b.get(y) || 0;
+          if (!0 === g || 3 === g && 4 !== v || 4 === g && 3 !== v) throw new Error("Attempted to decorate a public method/accessor that has the same name as a previously decorated public method/accessor. This is not currently supported by the decorators plugin. Property name was: " + y);
+          !g && v > 2 ? b.set(y, v) : b.set(y, !0);
         }
-        old_applyMemberDec(e, u, d, h, v, b, y, f, p);
+        old_applyMemberDec(e, u, d, y, v, m, h, f, p);
       }
     }
     old_pushInitializers(e, i), old_pushInitializers(e, n);
@@ -2556,8 +4102,8 @@ $\
     function createAddInitializerMethod(e, t) {
       return function (r) {
         !function (e, t) {
-          if (e.v) throw new Error("attempted to call " + t + " after decoration was finished");
-        }(t, "addInitializer"), assertCallable(r, "An initializer"), e.push(r);
+          if (e.v) throw new Error("attempted to call addInitializer after decoration was finished");
+        }(t), assertCallable(r, "An initializer"), e.push(r);
       };
     }
     function memberDec(e, t, r, a, n, i, s, o) {
@@ -2621,10 +4167,7 @@ $\
       if (1 === e) {
         if ("object" !== r || null === t) throw new TypeError("accessor decorators must return an object with get, set, or init properties or void 0");
         void 0 !== t.get && assertCallable(t.get, "accessor.get"), void 0 !== t.set && assertCallable(t.set, "accessor.set"), void 0 !== t.init && assertCallable(t.init, "accessor.init");
-      } else if ("function" !== r) {
-        var a;
-        throw a = 0 === e ? "field" : 10 === e ? "class" : "method", new TypeError(a + " decorators must return a function or void 0");
-      }
+      } else if ("function" !== r) throw new TypeError((0 === e ? "field" : 10 === e ? "class" : "method") + " decorators must return a function or void 0");
     }
     function applyMemberDec(e, t, r, a, n, i, s, o) {
       var c,
@@ -2651,10 +4194,10 @@ $\
         set: d
       }) : u = f);else for (var v = h.length - 1; v >= 0; v--) {
         var g;
-        if (void 0 !== (f = memberDec(h[v], a, c, o, n, i, s, u))) assertValidReturnValue(n, f), 0 === n ? g = f : 1 === n ? (g = f.init, p = f.get || u.get, d = f.set || u.set, u = {
+        void 0 !== (f = memberDec(h[v], a, c, o, n, i, s, u)) && (assertValidReturnValue(n, f), 0 === n ? g = f : 1 === n ? (g = f.init, p = f.get || u.get, d = f.set || u.set, u = {
           get: p,
           set: d
-        }) : u = f, void 0 !== g && (void 0 === l ? l = g : "function" == typeof l ? l = [l, g] : l.push(g));
+        }) : u = f, void 0 !== g && (void 0 === l ? l = g : "function" == typeof l ? l = [l, g] : l.push(g)));
       }
       if (0 === n || 1 === n) {
         if (void 0 === l) l = function (e, t) {
@@ -2741,11 +4284,11 @@ $\
     function createAddInitializerMethod(e, t) {
       return function (r) {
         !function (e, t) {
-          if (e.v) throw new Error("attempted to call " + t + " after decoration was finished");
-        }(t, "addInitializer"), assertCallable(r, "An initializer"), e.push(r);
+          if (e.v) throw new Error("attempted to call addInitializer after decoration was finished");
+        }(t), assertCallable(r, "An initializer"), e.push(r);
       };
     }
-    function memberDec(e, t, r, n, a, i, s, o) {
+    function memberDec(e, t, r, n, a, i, o, s) {
       var c;
       switch (a) {
         case 1:
@@ -2767,14 +4310,14 @@ $\
         u,
         f = {
           kind: c,
-          name: s ? "#" + t : t,
+          name: o ? "#" + t : _toPropertyKey(t),
           static: i,
-          private: s
+          private: o
         },
         p = {
           v: !1
         };
-      0 !== a && (f.addInitializer = createAddInitializerMethod(n, p)), 0 === a ? s ? (l = r.get, u = r.set) : (l = function () {
+      0 !== a && (f.addInitializer = createAddInitializerMethod(n, p)), 0 === a ? o ? (l = r.get, u = r.set) : (l = function () {
         return this[t];
       }, u = function (e) {
         this[t] = e;
@@ -2793,7 +4336,7 @@ $\
         set: u
       };
       try {
-        return e(o, f);
+        return e(s, f);
       } finally {
         p.v = !0;
       }
@@ -2806,69 +4349,67 @@ $\
       if (1 === e) {
         if ("object" !== r || null === t) throw new TypeError("accessor decorators must return an object with get, set, or init properties or void 0");
         void 0 !== t.get && assertCallable(t.get, "accessor.get"), void 0 !== t.set && assertCallable(t.set, "accessor.set"), void 0 !== t.init && assertCallable(t.init, "accessor.init");
-      } else if ("function" !== r) {
-        var n;
-        throw n = 0 === e ? "field" : 10 === e ? "class" : "method", new TypeError(n + " decorators must return a function or void 0");
-      }
+      } else if ("function" !== r) throw new TypeError((0 === e ? "field" : 10 === e ? "class" : "method") + " decorators must return a function or void 0");
     }
-    function applyMemberDec(e, t, r, n, a, i, s, o) {
+    function applyMemberDec(e, t, r, n, a, i, o, s) {
       var c,
         l,
         u,
         f,
         p,
         d,
-        h = r[0];
-      if (s ? c = 0 === a || 1 === a ? {
+        h,
+        v = r[0];
+      if (o ? (0 === a || 1 === a ? (c = {
         get: r[3],
         set: r[4]
-      } : 3 === a ? {
+      }, u = "get") : 3 === a ? (c = {
         get: r[3]
-      } : 4 === a ? {
+      }, u = "get") : 4 === a ? (c = {
         set: r[3]
-      } : {
+      }, u = "set") : c = {
         value: r[3]
-      } : 0 !== a && (c = Object.getOwnPropertyDescriptor(t, n)), 1 === a ? u = {
+      }, 0 !== a && (1 === a && _setFunctionName(r[4], "#" + n, "set"), _setFunctionName(r[3], "#" + n, u))) : 0 !== a && (c = Object.getOwnPropertyDescriptor(t, n)), 1 === a ? f = {
         get: c.get,
         set: c.set
-      } : 2 === a ? u = c.value : 3 === a ? u = c.get : 4 === a && (u = c.set), "function" == typeof h) void 0 !== (f = memberDec(h, n, c, o, a, i, s, u)) && (assertValidReturnValue(a, f), 0 === a ? l = f : 1 === a ? (l = f.init, p = f.get || u.get, d = f.set || u.set, u = {
-        get: p,
-        set: d
-      }) : u = f);else for (var v = h.length - 1; v >= 0; v--) {
-        var g;
-        if (void 0 !== (f = memberDec(h[v], n, c, o, a, i, s, u))) assertValidReturnValue(a, f), 0 === a ? g = f : 1 === a ? (g = f.init, p = f.get || u.get, d = f.set || u.set, u = {
-          get: p,
-          set: d
-        }) : u = f, void 0 !== g && (void 0 === l ? l = g : "function" == typeof l ? l = [l, g] : l.push(g));
+      } : 2 === a ? f = c.value : 3 === a ? f = c.get : 4 === a && (f = c.set), "function" == typeof v) void 0 !== (p = memberDec(v, n, c, s, a, i, o, f)) && (assertValidReturnValue(a, p), 0 === a ? l = p : 1 === a ? (l = p.init, d = p.get || f.get, h = p.set || f.set, f = {
+        get: d,
+        set: h
+      }) : f = p);else for (var g = v.length - 1; g >= 0; g--) {
+        var y;
+        void 0 !== (p = memberDec(v[g], n, c, s, a, i, o, f)) && (assertValidReturnValue(a, p), 0 === a ? y = p : 1 === a ? (y = p.init, d = p.get || f.get, h = p.set || f.set, f = {
+          get: d,
+          set: h
+        }) : f = p, void 0 !== y && (void 0 === l ? l = y : "function" == typeof l ? l = [l, y] : l.push(y)));
       }
       if (0 === a || 1 === a) {
         if (void 0 === l) l = function (e, t) {
           return t;
         };else if ("function" != typeof l) {
-          var y = l;
+          var m = l;
           l = function (e, t) {
-            for (var r = t, n = 0; n < y.length; n++) r = y[n].call(e, r);
+            for (var r = t, n = 0; n < m.length; n++) r = m[n].call(e, r);
             return r;
           };
         } else {
-          var m = l;
+          var b = l;
           l = function (e, t) {
-            return m.call(e, t);
+            return b.call(e, t);
           };
         }
         e.push(l);
       }
-      0 !== a && (1 === a ? (c.get = u.get, c.set = u.set) : 2 === a ? c.value = u : 3 === a ? c.get = u : 4 === a && (c.set = u), s ? 1 === a ? (e.push(function (e, t) {
-        return u.get.call(e, t);
+      0 !== a && (1 === a ? (c.get = f.get, c.set = f.set) : 2 === a ? c.value = f : 3 === a ? c.get = f : 4 === a && (c.set = f), o ? 1 === a ? (e.push(function (e, t) {
+        return f.get.call(e, t);
       }), e.push(function (e, t) {
-        return u.set.call(e, t);
-      })) : 2 === a ? e.push(u) : e.push(function (e, t) {
-        return u.call(e, t);
+        return f.set.call(e, t);
+      })) : 2 === a ? e.push(f) : e.push(function (e, t) {
+        return f.call(e, t);
       }) : Object.defineProperty(t, n, c));
     }
     function applyMemberDecs(e, t) {
-      for (var r, n, a = [], i = new Map(), s = new Map(), o = 0; o < t.length; o++) {
-        var c = t[o];
+      for (var r, n, a = [], i = new Map(), o = new Map(), s = 0; s < t.length; s++) {
+        var c = t[s];
         if (Array.isArray(c)) {
           var l,
             u,
@@ -2876,8 +4417,8 @@ $\
             p = c[2],
             d = c.length > 3,
             h = f >= 5;
-          if (h ? (l = e, 0 !== (f -= 5) && (u = n = n || [])) : (l = e.prototype, 0 !== f && (u = r = r || [])), 0 !== f && !d) {
-            var v = h ? s : i,
+          if (h ? (l = e, 0 != (f -= 5) && (u = n = n || [])) : (l = e.prototype, 0 !== f && (u = r = r || [])), 0 !== f && !d) {
+            var v = h ? o : i,
               g = v.get(p) || 0;
             if (!0 === g || 3 === g && 4 !== f || 4 === g && 3 !== f) throw new Error("Attempted to decorate a public method/accessor that has the same name as a previously decorated public method/accessor. This is not currently supported by the decorators plugin. Property name was: " + p);
             !g && f > 2 ? v.set(p, f) : v.set(p, !0);
@@ -2900,19 +4441,19 @@ $\
           return function (e, t) {
             if (t.length > 0) {
               for (var r = [], n = e, a = e.name, i = t.length - 1; i >= 0; i--) {
-                var s = {
+                var o = {
                   v: !1
                 };
                 try {
-                  var o = t[i](n, {
+                  var s = t[i](n, {
                     kind: "class",
                     name: a,
-                    addInitializer: createAddInitializerMethod(r, s)
+                    addInitializer: createAddInitializerMethod(r, o)
                   });
                 } finally {
-                  s.v = !0;
+                  o.v = !0;
                 }
-                void 0 !== o && (assertValidReturnValue(10, o), n = o);
+                void 0 !== s && (assertValidReturnValue(10, s), n = s);
               }
               return [n, function () {
                 for (var e = 0; e < r.length; e++) r[e].call(n);
@@ -2930,8 +4471,8 @@ $\
     function createAddInitializerMethod(e, t) {
       return function (r) {
         !function (e, t) {
-          if (e.v) throw new Error("attempted to call " + t + " after decoration was finished");
-        }(t, "addInitializer"), assertCallable(r, "An initializer"), e.push(r);
+          if (e.v) throw new Error("attempted to call addInitializer after decoration was finished");
+        }(t), assertCallable(r, "An initializer"), e.push(r);
       };
     }
     function assertInstanceIfPrivate(e, t) {
@@ -2959,7 +4500,7 @@ $\
         f,
         p = {
           kind: u,
-          name: s ? "#" + t : t,
+          name: s ? "#" + t : _toPropertyKey(t),
           static: i,
           private: s
         },
@@ -3014,10 +4555,7 @@ $\
       if (1 === e) {
         if ("object" !== r || null === t) throw new TypeError("accessor decorators must return an object with get, set, or init properties or void 0");
         void 0 !== t.get && assertCallable(t.get, "accessor.get"), void 0 !== t.set && assertCallable(t.set, "accessor.set"), void 0 !== t.init && assertCallable(t.init, "accessor.init");
-      } else if ("function" !== r) {
-        var n;
-        throw n = 0 === e ? "field" : 10 === e ? "class" : "method", new TypeError(n + " decorators must return a function or void 0");
-      }
+      } else if ("function" !== r) throw new TypeError((0 === e ? "field" : 10 === e ? "class" : "method") + " decorators must return a function or void 0");
     }
     function curryThis2(e) {
       return function (t) {
@@ -3032,54 +4570,55 @@ $\
         d,
         h,
         v,
+        y,
         g = r[0];
-      if (s ? u = 0 === a || 1 === a ? {
-        get: (p = r[3], function () {
-          return p(this);
+      if (s ? (0 === a || 1 === a ? (u = {
+        get: (d = r[3], function () {
+          return d(this);
         }),
         set: curryThis2(r[4])
-      } : 3 === a ? {
+      }, f = "get") : 3 === a ? (u = {
         get: r[3]
-      } : 4 === a ? {
+      }, f = "get") : 4 === a ? (u = {
         set: r[3]
-      } : {
+      }, f = "set") : u = {
         value: r[3]
-      } : 0 !== a && (u = Object.getOwnPropertyDescriptor(t, n)), 1 === a ? f = {
+      }, 0 !== a && (1 === a && _setFunctionName(u.set, "#" + n, "set"), _setFunctionName(u[f || "value"], "#" + n, f))) : 0 !== a && (u = Object.getOwnPropertyDescriptor(t, n)), 1 === a ? p = {
         get: u.get,
         set: u.set
-      } : 2 === a ? f = u.value : 3 === a ? f = u.get : 4 === a && (f = u.set), "function" == typeof g) void 0 !== (d = memberDec(g, n, u, o, a, i, s, f, c)) && (assertValidReturnValue(a, d), 0 === a ? l = d : 1 === a ? (l = d.init, h = d.get || f.get, v = d.set || f.set, f = {
-        get: h,
-        set: v
-      }) : f = d);else for (var y = g.length - 1; y >= 0; y--) {
-        var m;
-        if (void 0 !== (d = memberDec(g[y], n, u, o, a, i, s, f, c))) assertValidReturnValue(a, d), 0 === a ? m = d : 1 === a ? (m = d.init, h = d.get || f.get, v = d.set || f.set, f = {
-          get: h,
-          set: v
-        }) : f = d, void 0 !== m && (void 0 === l ? l = m : "function" == typeof l ? l = [l, m] : l.push(m));
+      } : 2 === a ? p = u.value : 3 === a ? p = u.get : 4 === a && (p = u.set), "function" == typeof g) void 0 !== (h = memberDec(g, n, u, o, a, i, s, p, c)) && (assertValidReturnValue(a, h), 0 === a ? l = h : 1 === a ? (l = h.init, v = h.get || p.get, y = h.set || p.set, p = {
+        get: v,
+        set: y
+      }) : p = h);else for (var m = g.length - 1; m >= 0; m--) {
+        var b;
+        void 0 !== (h = memberDec(g[m], n, u, o, a, i, s, p, c)) && (assertValidReturnValue(a, h), 0 === a ? b = h : 1 === a ? (b = h.init, v = h.get || p.get, y = h.set || p.set, p = {
+          get: v,
+          set: y
+        }) : p = h, void 0 !== b && (void 0 === l ? l = b : "function" == typeof l ? l = [l, b] : l.push(b)));
       }
       if (0 === a || 1 === a) {
         if (void 0 === l) l = function (e, t) {
           return t;
         };else if ("function" != typeof l) {
-          var b = l;
+          var I = l;
           l = function (e, t) {
-            for (var r = t, n = 0; n < b.length; n++) r = b[n].call(e, r);
+            for (var r = t, n = 0; n < I.length; n++) r = I[n].call(e, r);
             return r;
           };
         } else {
-          var I = l;
+          var w = l;
           l = function (e, t) {
-            return I.call(e, t);
+            return w.call(e, t);
           };
         }
         e.push(l);
       }
-      0 !== a && (1 === a ? (u.get = f.get, u.set = f.set) : 2 === a ? u.value = f : 3 === a ? u.get = f : 4 === a && (u.set = f), s ? 1 === a ? (e.push(function (e, t) {
-        return f.get.call(e, t);
+      0 !== a && (1 === a ? (u.get = p.get, u.set = p.set) : 2 === a ? u.value = p : 3 === a ? u.get = p : 4 === a && (u.set = p), s ? 1 === a ? (e.push(function (e, t) {
+        return p.get.call(e, t);
       }), e.push(function (e, t) {
-        return f.set.call(e, t);
-      })) : 2 === a ? e.push(f) : e.push(function (e, t) {
-        return f.call(e, t);
+        return p.set.call(e, t);
+      })) : 2 === a ? e.push(p) : e.push(function (e, t) {
+        return p.call(e, t);
       }) : Object.defineProperty(t, n, u));
     }
     function applyMemberDecs(e, t, r) {
@@ -3091,17 +4630,17 @@ $\
             d = l[1],
             h = l[2],
             v = l.length > 3,
-            g = d >= 5,
-            y = r;
-          if (g ? (f = e, 0 !== (d -= 5) && (p = a = a || []), v && !i && (i = function (t) {
+            y = d >= 5,
+            g = r;
+          if (y ? (f = e, 0 != (d -= 5) && (p = a = a || []), v && !i && (i = function (t) {
             return _checkInRHS(t) === e;
-          }), y = i) : (f = e.prototype, 0 !== d && (p = n = n || [])), 0 !== d && !v) {
-            var m = g ? c : o,
+          }), g = i) : (f = e.prototype, 0 !== d && (p = n = n || [])), 0 !== d && !v) {
+            var m = y ? c : o,
               b = m.get(h) || 0;
             if (!0 === b || 3 === b && 4 !== d || 4 === b && 3 !== d) throw new Error("Attempted to decorate a public method/accessor that has the same name as a previously decorated public method/accessor. This is not currently supported by the decorators plugin. Property name was: " + h);
             !b && d > 2 ? m.set(h, d) : m.set(h, !0);
           }
-          applyMemberDec(s, f, l, h, d, g, v, p, y);
+          applyMemberDec(s, f, l, h, d, y, v, p, g);
         }
       }
       return pushInitializers(s, n), pushInitializers(s, a), s;
@@ -3145,232 +4684,131 @@ $\
   function _applyDecs2301(e, t, r, n) {
     return (_applyDecs2301 = applyDecs2301Factory())(e, t, r, n);
   }
-  function createAddInitializerMethod(e, t) {
-    return function (r) {
-      assertNotFinished(t, "addInitializer"), assertCallable(r, "An initializer"), e.push(r);
-    };
-  }
-  function assertInstanceIfPrivate(e, t) {
-    if (!e(t)) throw new TypeError("Attempted to access private element on non-instance");
-  }
-  function memberDec(e, t, r, a, n, i, s, o, c, l, u) {
-    var f;
-    switch (i) {
-      case 1:
-        f = "accessor";
-        break;
-      case 2:
-        f = "method";
-        break;
-      case 3:
-        f = "getter";
-        break;
-      case 4:
-        f = "setter";
-        break;
-      default:
-        f = "field";
-    }
-    var d,
-      p,
-      h = {
-        kind: f,
-        name: o ? "#" + r : r,
-        static: s,
-        private: o,
-        metadata: u
-      },
-      v = {
-        v: !1
+  function _applyDecs2305(e, t, r, n, o, a) {
+    function i(e, t, r) {
+      return function (n, o) {
+        return r && r(n), e[t].call(n, o);
       };
-    if (0 !== i && (h.addInitializer = createAddInitializerMethod(n, v)), o || 0 !== i && 2 !== i) {
-      if (2 === i) d = function (e) {
-        return assertInstanceIfPrivate(l, e), a.value;
-      };else {
-        var y = 0 === i || 1 === i;
-        (y || 3 === i) && (d = o ? function (e) {
-          return assertInstanceIfPrivate(l, e), a.get.call(e);
-        } : function (e) {
-          return a.get.call(e);
-        }), (y || 4 === i) && (p = o ? function (e, t) {
-          assertInstanceIfPrivate(l, e), a.set.call(e, t);
-        } : function (e, t) {
-          a.set.call(e, t);
-        });
-      }
-    } else d = function (e) {
-      return e[r];
-    }, 0 === i && (p = function (e, t) {
-      e[r] = t;
-    });
-    var m = o ? l.bind() : function (e) {
-      return r in e;
-    };
-    h.access = d && p ? {
-      get: d,
-      set: p,
-      has: m
-    } : d ? {
-      get: d,
-      has: m
-    } : {
-      set: p,
-      has: m
-    };
-    try {
-      return e.call(t, c, h);
-    } finally {
-      v.v = !0;
     }
-  }
-  function assertNotFinished(e, t) {
-    if (e.v) throw new Error("attempted to call " + t + " after decoration was finished");
-  }
-  function assertCallable(e, t) {
-    if ("function" != typeof e) throw new TypeError(t + " must be a function");
-  }
-  function assertValidReturnValue(e, t) {
-    var r = typeof t;
-    if (1 === e) {
-      if ("object" !== r || null === t) throw new TypeError("accessor decorators must return an object with get, set, or init properties or void 0");
-      void 0 !== t.get && assertCallable(t.get, "accessor.get"), void 0 !== t.set && assertCallable(t.set, "accessor.set"), void 0 !== t.init && assertCallable(t.init, "accessor.init");
-    } else if ("function" !== r) {
-      var a;
-      throw a = 0 === e ? "field" : 5 === e ? "class" : "method", new TypeError(a + " decorators must return a function or void 0");
+    function c(e, t) {
+      for (var r = 0; r < e.length; r++) e[r].call(t);
+      return t;
     }
-  }
-  function curryThis1(e) {
-    return function () {
-      return e(this);
-    };
-  }
-  function curryThis2(e) {
-    return function (t) {
-      e(this, t);
-    };
-  }
-  function applyMemberDec(e, t, r, a, n, i, s, o, c, l, u) {
-    var f,
-      d,
-      p,
-      h,
-      v,
-      y,
-      m = r[0];
-    a || Array.isArray(m) || (m = [m]), o ? f = 0 === i || 1 === i ? {
-      get: curryThis1(r[3]),
-      set: curryThis2(r[4])
-    } : 3 === i ? {
-      get: r[3]
-    } : 4 === i ? {
-      set: r[3]
-    } : {
-      value: r[3]
-    } : 0 !== i && (f = Object.getOwnPropertyDescriptor(t, n)), 1 === i ? p = {
-      get: f.get,
-      set: f.set
-    } : 2 === i ? p = f.value : 3 === i ? p = f.get : 4 === i && (p = f.set);
-    for (var g = a ? 2 : 1, b = m.length - 1; b >= 0; b -= g) {
-      var I;
-      if (void 0 !== (h = memberDec(m[b], a ? m[b - 1] : void 0, n, f, c, i, s, o, p, l, u))) assertValidReturnValue(i, h), 0 === i ? I = h : 1 === i ? (I = h.init, v = h.get || p.get, y = h.set || p.set, p = {
-        get: v,
-        set: y
-      }) : p = h, void 0 !== I && (void 0 === d ? d = I : "function" == typeof d ? d = [d, I] : d.push(I));
-    }
-    if (0 === i || 1 === i) {
-      if (void 0 === d) d = function (e, t) {
-        return t;
-      };else if ("function" != typeof d) {
-        var w = d;
-        d = function (e, t) {
-          for (var r = t, a = w.length - 1; a >= 0; a--) r = w[a].call(e, r);
-          return r;
-        };
-      } else {
-        var M = d;
-        d = function (e, t) {
-          return M.call(e, t);
-        };
-      }
-      e.push(d);
-    }
-    0 !== i && (1 === i ? (f.get = p.get, f.set = p.set) : 2 === i ? f.value = p : 3 === i ? f.get = p : 4 === i && (f.set = p), o ? 1 === i ? (e.push(function (e, t) {
-      return p.get.call(e, t);
-    }), e.push(function (e, t) {
-      return p.set.call(e, t);
-    })) : 2 === i ? e.push(p) : e.push(function (e, t) {
-      return p.call(e, t);
-    }) : Object.defineProperty(t, n, f));
-  }
-  function applyMemberDecs(e, t, r, a) {
-    for (var n, i, s, o = [], c = new Map(), l = new Map(), u = 0; u < t.length; u++) {
-      var f = t[u];
-      if (Array.isArray(f)) {
-        var d,
-          p,
-          h = f[1],
-          v = f[2],
-          y = f.length > 3,
-          m = 16 & h,
-          g = !!(8 & h),
-          b = r;
-        if (h &= 7, g ? (d = e, 0 !== h && (p = i = i || []), y && !s && (s = function (t) {
-          return _checkInRHS(t) === e;
-        }), b = s) : (d = e.prototype, 0 !== h && (p = n = n || [])), 0 !== h && !y) {
-          var I = g ? l : c,
-            w = I.get(v) || 0;
-          if (!0 === w || 3 === w && 4 !== h || 4 === w && 3 !== h) throw new Error("Attempted to decorate a public method/accessor that has the same name as a previously decorated public method/accessor. This is not currently supported by the decorators plugin. Property name was: " + v);
-          I.set(v, !(!w && h > 2) || h);
-        }
-        applyMemberDec(o, d, f, m, v, h, g, y, p, b, a);
-      }
-    }
-    return pushInitializers(o, n), pushInitializers(o, i), o;
-  }
-  function pushInitializers(e, t) {
-    t && e.push(function (e) {
-      for (var r = 0; r < t.length; r++) t[r].call(e);
+    function s(e, t, r, n) {
+      if ("function" != typeof e && (n || void 0 !== e)) throw new TypeError(t + " must " + (r || "be") + " a function" + (n ? "" : " or undefined"));
       return e;
-    });
-  }
-  function applyClassDecs(e, t, r, a) {
-    if (t.length) {
-      for (var n = [], i = e, s = e.name, o = r ? 2 : 1, c = t.length - 1; c >= 0; c -= o) {
-        var l = {
-          v: !1
-        };
-        try {
-          var u = t[c].call(r ? t[c - 1] : void 0, i, {
-            kind: "class",
-            name: s,
-            addInitializer: createAddInitializerMethod(n, l),
-            metadata: a
-          });
-        } finally {
-          l.v = !0;
-        }
-        void 0 !== u && (assertValidReturnValue(5, u), i = u);
-      }
-      return [defineMetadata(i, a), function () {
-        for (var e = 0; e < n.length; e++) n[e].call(i);
-      }];
     }
-  }
-  function defineMetadata(e, t) {
-    return Object.defineProperty(e, Symbol.metadata || Symbol.for("Symbol.metadata"), {
-      configurable: !0,
-      enumerable: !0,
-      value: t
-    });
-  }
-  function _applyDecs2305(e, t, r, a, n, i) {
-    if (arguments.length >= 6) var s = i[Symbol.metadata || Symbol.for("Symbol.metadata")];
-    var o = Object.create(void 0 === s ? null : s),
-      c = applyMemberDecs(e, t, n, o);
-    return r.length || defineMetadata(e, o), {
-      e: c,
+    function applyDec(e, t, r, n, o, a, c, u, l, f, p, d, h) {
+      function m(e) {
+        if (!h(e)) throw new TypeError("Attempted to access private element on non-instance");
+      }
+      var y,
+        v = t[0],
+        g = t[3],
+        b = !u;
+      if (!b) {
+        r || Array.isArray(v) || (v = [v]);
+        var w = {},
+          S = [],
+          A = 3 === o ? "get" : 4 === o || d ? "set" : "value";
+        f ? (p || d ? w = {
+          get: _setFunctionName(function () {
+            return g(this);
+          }, n, "get"),
+          set: function (e) {
+            t[4](this, e);
+          }
+        } : w[A] = g, p || _setFunctionName(w[A], n, 2 === o ? "" : A)) : p || (w = Object.getOwnPropertyDescriptor(e, n));
+      }
+      for (var P = e, j = v.length - 1; j >= 0; j -= r ? 2 : 1) {
+        var D = v[j],
+          E = r ? v[j - 1] : void 0,
+          I = {},
+          O = {
+            kind: ["field", "accessor", "method", "getter", "setter", "class"][o],
+            name: n,
+            metadata: a,
+            addInitializer: function (e, t) {
+              if (e.v) throw new Error("attempted to call addInitializer after decoration was finished");
+              s(t, "An initializer", "be", !0), c.push(t);
+            }.bind(null, I)
+          };
+        try {
+          if (b) (y = s(D.call(E, P, O), "class decorators", "return")) && (P = y);else {
+            var k, F;
+            O.static = l, O.private = f, f ? 2 === o ? k = function (e) {
+              return m(e), w.value;
+            } : (o < 4 && (k = i(w, "get", m)), 3 !== o && (F = i(w, "set", m))) : (k = function (e) {
+              return e[n];
+            }, (o < 2 || 4 === o) && (F = function (e, t) {
+              e[n] = t;
+            }));
+            var N = O.access = {
+              has: f ? h.bind() : function (e) {
+                return n in e;
+              }
+            };
+            if (k && (N.get = k), F && (N.set = F), P = D.call(E, d ? {
+              get: w.get,
+              set: w.set
+            } : w[A], O), d) {
+              if ("object" == typeof P && P) (y = s(P.get, "accessor.get")) && (w.get = y), (y = s(P.set, "accessor.set")) && (w.set = y), (y = s(P.init, "accessor.init")) && S.push(y);else if (void 0 !== P) throw new TypeError("accessor decorators must return an object with get, set, or init properties or void 0");
+            } else s(P, (p ? "field" : "method") + " decorators", "return") && (p ? S.push(P) : w[A] = P);
+          }
+        } finally {
+          I.v = !0;
+        }
+      }
+      return (p || d) && u.push(function (e, t) {
+        for (var r = S.length - 1; r >= 0; r--) t = S[r].call(e, t);
+        return t;
+      }), p || b || (f ? d ? u.push(i(w, "get"), i(w, "set")) : u.push(2 === o ? w[A] : i.call.bind(w[A])) : Object.defineProperty(e, n, w)), P;
+    }
+    function u(e, t) {
+      return Object.defineProperty(e, Symbol.metadata || Symbol.for("Symbol.metadata"), {
+        configurable: !0,
+        enumerable: !0,
+        value: t
+      });
+    }
+    if (arguments.length >= 6) var l = a[Symbol.metadata || Symbol.for("Symbol.metadata")];
+    var f = Object.create(null == l ? null : l),
+      p = function (e, t, r, n) {
+        var o,
+          a,
+          i = [],
+          s = function (t) {
+            return _checkInRHS(t) === e;
+          },
+          u = new Map();
+        function l(e) {
+          e && i.push(c.bind(null, e));
+        }
+        for (var f = 0; f < t.length; f++) {
+          var p = t[f];
+          if (Array.isArray(p)) {
+            var d = p[1],
+              h = p[2],
+              m = p.length > 3,
+              y = 16 & d,
+              v = !!(8 & d),
+              g = 0 == (d &= 7),
+              b = h + "/" + v;
+            if (!g && !m) {
+              var w = u.get(b);
+              if (!0 === w || 3 === w && 4 !== d || 4 === w && 3 !== d) throw new Error("Attempted to decorate a public method/accessor that has the same name as a previously decorated public method/accessor. This is not currently supported by the decorators plugin. Property name was: " + h);
+              u.set(b, !(d > 2) || d);
+            }
+            applyDec(v ? e : e.prototype, p, y, m ? "#" + h : _toPropertyKey(h), d, n, v ? a = a || [] : o = o || [], i, v, m, g, 1 === d, v && m ? s : r);
+          }
+        }
+        return l(o), l(a), i;
+      }(e, t, o, f);
+    return r.length || u(e, f), {
+      e: p,
       get c() {
-        return applyClassDecs(e, r, a, o);
+        var t = [];
+        return r.length && [u(applyDec(e, [r], n, e.name, 5, f, t), f), c.bind(null, t, e)];
       }
     };
   }
@@ -3443,9 +4881,19 @@ $\
   function _awaitAsyncGenerator(e) {
     return new _OverloadYield(e, 0);
   }
+  function _callSuper(t, o, e) {
+    return o = _getPrototypeOf(o), _possibleConstructorReturn(t, _isNativeReflectConstruct() ? Reflect.construct(o, e || [], _getPrototypeOf(t).constructor) : o.apply(t, e));
+  }
   function _checkInRHS(e) {
     if (Object(e) !== e) throw TypeError("right-hand side of 'in' should be an object, got " + (null !== e ? typeof e : "null"));
     return e;
+  }
+  function _construct(t, e, r) {
+    if (_isNativeReflectConstruct()) return Reflect.construct.apply(null, arguments);
+    var o = [null];
+    o.push.apply(o, e);
+    var p = new (t.bind.apply(t, o))();
+    return r && _setPrototypeOf(p, r.prototype), p;
   }
   function _defineAccessor(e, r, n, t) {
     var c = {
@@ -3456,7 +4904,7 @@ $\
   }
   function dispose_SuppressedError(r, e) {
     return "undefined" != typeof SuppressedError ? dispose_SuppressedError = SuppressedError : (dispose_SuppressedError = function (r, e) {
-      this.suppressed = r, this.error = e, this.stack = new Error().stack;
+      this.suppressed = e, this.error = r, this.stack = new Error().stack;
     }, dispose_SuppressedError.prototype = Object.create(Error.prototype, {
       constructor: {
         value: dispose_SuppressedError,
@@ -3477,7 +4925,7 @@ $\
       if (s) throw e;
     }
     function err(r) {
-      return e = s ? new dispose_SuppressedError(r, e) : r, s = !0, next();
+      return e = s ? new dispose_SuppressedError(e, r) : r, s = !0, next();
     }
     return next();
   }
@@ -3506,6 +4954,39 @@ $\
       set: constValue(!1),
       setPrototypeOf: constValue(!1)
     });
+  }
+  function _getRequireWildcardCache(e) {
+    if ("function" != typeof WeakMap) return null;
+    var r = new WeakMap(),
+      t = new WeakMap();
+    return (_getRequireWildcardCache = function (e) {
+      return e ? t : r;
+    })(e);
+  }
+  function _interopRequireWildcard(e, r) {
+    if (!r && e && e.__esModule) return e;
+    if (null === e || "object" != typeof e && "function" != typeof e) return {
+      default: e
+    };
+    var t = _getRequireWildcardCache(r);
+    if (t && t.has(e)) return t.get(e);
+    var n = {
+        __proto__: null
+      },
+      a = Object.defineProperty && Object.getOwnPropertyDescriptor;
+    for (var u in e) if ("default" !== u && Object.prototype.hasOwnProperty.call(e, u)) {
+      var i = a ? Object.getOwnPropertyDescriptor(e, u) : null;
+      i && (i.get || i.set) ? Object.defineProperty(n, u, i) : n[u] = e[u];
+    }
+    return n.default = e, t && t.set(e, n), n;
+  }
+  function _isNativeReflectConstruct() {
+    try {
+      var t = !Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
+    } catch (t) {}
+    return (_isNativeReflectConstruct = function () {
+      return !!t;
+    })();
   }
   function _iterableToArrayLimit(r, l) {
     var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"];
@@ -3887,6 +5368,30 @@ $\
       }
     }, e;
   }
+  function _setFunctionName(e, t, n) {
+    "symbol" == typeof t && (t = (t = t.description) ? "[" + t + "]" : "");
+    try {
+      Object.defineProperty(e, "name", {
+        configurable: !0,
+        value: n ? n + " " + t : t
+      });
+    } catch (e) {}
+    return e;
+  }
+  function _toPrimitive(t, r) {
+    if ("object" != typeof t || !t) return t;
+    var e = t[Symbol.toPrimitive];
+    if (void 0 !== e) {
+      var i = e.call(t, r || "default");
+      if ("object" != typeof i) return i;
+      throw new TypeError("@@toPrimitive must return a primitive value.");
+    }
+    return ("string" === r ? String : Number)(t);
+  }
+  function _toPropertyKey(t) {
+    var i = _toPrimitive(t, "string");
+    return "symbol" == typeof i ? i : String(i);
+  }
   function _typeof(o) {
     "@babel/helpers - typeof";
 
@@ -3896,16 +5401,59 @@ $\
       return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
     }, _typeof(o);
   }
-  function _using(o, e, n) {
-    if (null == e) return e;
-    if ("object" != typeof e) throw new TypeError("using declarations can only be used with objects, null, or undefined.");
-    if (n) var r = e[Symbol.asyncDispose || Symbol.for("Symbol.asyncDispose")];
-    if (null == r && (r = e[Symbol.dispose || Symbol.for("Symbol.dispose")]), "function" != typeof r) throw new TypeError("Property [Symbol.dispose] is not a function.");
+  function _using(o, n, e) {
+    if (null == n) return n;
+    if (Object(n) !== n) throw new TypeError("using declarations can only be used with objects, functions, null, or undefined.");
+    if (e) var r = n[Symbol.asyncDispose || Symbol.for("Symbol.asyncDispose")];
+    if (null == r && (r = n[Symbol.dispose || Symbol.for("Symbol.dispose")]), "function" != typeof r) throw new TypeError("Property [Symbol.dispose] is not a function.");
     return o.push({
-      v: e,
+      v: n,
       d: r,
-      a: n
-    }), e;
+      a: e
+    }), n;
+  }
+  function _usingCtx() {
+    var r = "function" == typeof SuppressedError ? SuppressedError : function (r, n) {
+        var e = new Error();
+        return e.name = "SuppressedError", e.suppressed = n, e.error = r, e;
+      },
+      n = {},
+      e = [];
+    function using(r, n) {
+      if (null != n) {
+        if (Object(n) !== n) throw new TypeError("using declarations can only be used with objects, functions, null, or undefined.");
+        if (r) var o = n[Symbol.asyncDispose || Symbol.for("Symbol.asyncDispose")];
+        if (null == o && (o = n[Symbol.dispose || Symbol.for("Symbol.dispose")]), "function" != typeof o) throw new TypeError("Property [Symbol.dispose] is not a function.");
+        e.push({
+          v: n,
+          d: o,
+          a: r
+        });
+      }
+      return n;
+    }
+    return {
+      e: n,
+      u: using.bind(null, !1),
+      a: using.bind(null, !0),
+      d: function () {
+        var o = this.e;
+        function next() {
+          for (; r = e.pop();) try {
+            var r,
+              t = r.d.call(r.v);
+            if (r.a) return Promise.resolve(t).then(next, err);
+          } catch (r) {
+            return err(r);
+          }
+          if (o !== n) throw o;
+        }
+        function err(e) {
+          return o = o !== n ? new r(o, e) : e, next();
+        }
+        return next();
+      }
+    };
   }
   function _wrapRegExp() {
     _wrapRegExp = function (e, r) {
@@ -4121,34 +5669,12 @@ $\
     };
     return _setPrototypeOf(o, p);
   }
-  function _isNativeReflectConstruct() {
-    if (typeof Reflect === "undefined" || !Reflect.construct) return false;
-    if (Reflect.construct.sham) return false;
-    if (typeof Proxy === "function") return true;
-    try {
-      Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-  function _construct(Parent, args, Class) {
-    if (_isNativeReflectConstruct()) {
-      _construct = Reflect.construct.bind();
-    } else {
-      _construct = function _construct(Parent, args, Class) {
-        var a = [null];
-        a.push.apply(a, args);
-        var Constructor = Function.bind.apply(Parent, a);
-        var instance = new Constructor();
-        if (Class) _setPrototypeOf(instance, Class.prototype);
-        return instance;
-      };
-    }
-    return _construct.apply(null, arguments);
-  }
   function _isNativeFunction(fn) {
-    return Function.toString.call(fn).indexOf("[native code]") !== -1;
+    try {
+      return Function.toString.call(fn).indexOf("[native code]") !== -1;
+    } catch (e) {
+      return typeof fn === "function";
+    }
   }
   function _wrapNativeSuper(Class) {
     var _cache = typeof Map === "function" ? new Map() : undefined;
@@ -4187,45 +5713,6 @@ $\
     return obj && obj.__esModule ? obj : {
       default: obj
     };
-  }
-  function _getRequireWildcardCache(nodeInterop) {
-    if (typeof WeakMap !== "function") return null;
-    var cacheBabelInterop = new WeakMap();
-    var cacheNodeInterop = new WeakMap();
-    return (_getRequireWildcardCache = function (nodeInterop) {
-      return nodeInterop ? cacheNodeInterop : cacheBabelInterop;
-    })(nodeInterop);
-  }
-  function _interopRequireWildcard(obj, nodeInterop) {
-    if (!nodeInterop && obj && obj.__esModule) {
-      return obj;
-    }
-    if (obj === null || typeof obj !== "object" && typeof obj !== "function") {
-      return {
-        default: obj
-      };
-    }
-    var cache = _getRequireWildcardCache(nodeInterop);
-    if (cache && cache.has(obj)) {
-      return cache.get(obj);
-    }
-    var newObj = {};
-    var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
-    for (var key in obj) {
-      if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-        var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-        if (desc && (desc.get || desc.set)) {
-          Object.defineProperty(newObj, key, desc);
-        } else {
-          newObj[key] = obj[key];
-        }
-      }
-    }
-    newObj.default = obj;
-    if (cache) {
-      cache.set(obj, newObj);
-    }
-    return newObj;
   }
   function _newArrowCheck(innerThis, boundThis) {
     if (innerThis !== boundThis) {
@@ -4506,20 +5993,6 @@ $\
       it.next();
       return it;
     };
-  }
-  function _toPrimitive(input, hint) {
-    if (typeof input !== "object" || input === null) return input;
-    var prim = input[Symbol.toPrimitive];
-    if (prim !== undefined) {
-      var res = prim.call(input, hint || "default");
-      if (typeof res !== "object") return res;
-      throw new TypeError("@@toPrimitive must return a primitive value.");
-    }
-    return (hint === "string" ? String : Number)(input);
-  }
-  function _toPropertyKey(arg) {
-    var key = _toPrimitive(arg, "string");
-    return typeof key === "symbol" ? key : String(key);
   }
   function _initializerWarningHelper(descriptor, context) {
     throw new Error('Decorating class property failed. Please ensure that ' + 'transform-class-properties is enabled and runs after the decorators transform.');
@@ -5151,6 +6624,11 @@ $\
       this.releaseFile = this.releaseFile.bind(this);
       this.attributes = Hash.box(attributes);
       this.didChangeAttributes();
+    }
+    setAttribute(attribute, value) {
+      this.setAttributes({
+        [attribute]: value
+      });
     }
     getAttribute(attribute) {
       return this.attributes.get(attribute);
@@ -6817,111 +8295,6 @@ $\
     return attributes;
   };
 
-  const DEFAULT_ALLOWED_ATTRIBUTES = "style href src width height language class".split(" ");
-  const DEFAULT_FORBIDDEN_PROTOCOLS = "javascript:".split(" ");
-  const DEFAULT_FORBIDDEN_ELEMENTS = "script iframe form noscript".split(" ");
-  class HTMLSanitizer extends BasicObject {
-    static sanitize(html, options) {
-      const sanitizer = new this(html, options);
-      sanitizer.sanitize();
-      return sanitizer;
-    }
-    constructor(html) {
-      let {
-        allowedAttributes,
-        forbiddenProtocols,
-        forbiddenElements
-      } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-      super(...arguments);
-      this.allowedAttributes = allowedAttributes || DEFAULT_ALLOWED_ATTRIBUTES;
-      this.forbiddenProtocols = forbiddenProtocols || DEFAULT_FORBIDDEN_PROTOCOLS;
-      this.forbiddenElements = forbiddenElements || DEFAULT_FORBIDDEN_ELEMENTS;
-      this.body = createBodyElementForHTML(html);
-    }
-    sanitize() {
-      this.sanitizeElements();
-      return this.normalizeListElementNesting();
-    }
-    getHTML() {
-      return this.body.innerHTML;
-    }
-    getBody() {
-      return this.body;
-    }
-
-    // Private
-
-    sanitizeElements() {
-      const walker = walkTree(this.body);
-      const nodesToRemove = [];
-      while (walker.nextNode()) {
-        const node = walker.currentNode;
-        switch (node.nodeType) {
-          case Node.ELEMENT_NODE:
-            if (this.elementIsRemovable(node)) {
-              nodesToRemove.push(node);
-            } else {
-              this.sanitizeElement(node);
-            }
-            break;
-          case Node.COMMENT_NODE:
-            nodesToRemove.push(node);
-            break;
-        }
-      }
-      nodesToRemove.forEach(node => removeNode(node));
-      return this.body;
-    }
-    sanitizeElement(element) {
-      if (element.hasAttribute("href")) {
-        if (this.forbiddenProtocols.includes(element.protocol)) {
-          element.removeAttribute("href");
-        }
-      }
-      Array.from(element.attributes).forEach(_ref => {
-        let {
-          name
-        } = _ref;
-        if (!this.allowedAttributes.includes(name) && name.indexOf("data-trix") !== 0) {
-          element.removeAttribute(name);
-        }
-      });
-      return element;
-    }
-    normalizeListElementNesting() {
-      Array.from(this.body.querySelectorAll("ul,ol")).forEach(listElement => {
-        const previousElement = listElement.previousElementSibling;
-        if (previousElement) {
-          if (tagName(previousElement) === "li") {
-            previousElement.appendChild(listElement);
-          }
-        }
-      });
-      return this.body;
-    }
-    elementIsRemovable(element) {
-      if ((element === null || element === void 0 ? void 0 : element.nodeType) !== Node.ELEMENT_NODE) return;
-      return this.elementIsForbidden(element) || this.elementIsntSerializable(element);
-    }
-    elementIsForbidden(element) {
-      return this.forbiddenElements.includes(tagName(element));
-    }
-    elementIsntSerializable(element) {
-      return element.getAttribute("data-trix-serialize") === "false" && !nodeIsAttachmentElement(element);
-    }
-  }
-  const createBodyElementForHTML = function () {
-    let html = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : "";
-    // Remove everything after </html>
-    html = html.replace(/<\/html[^>]*>[^]*$/i, "</html>");
-    const doc = document.implementation.createHTMLDocument("");
-    doc.documentElement.innerHTML = html;
-    Array.from(doc.head.querySelectorAll("style")).forEach(element => {
-      doc.body.appendChild(element);
-    });
-    return doc.body;
-  };
-
   /* eslint-disable
       no-case-declarations,
       no-irregular-whitespace,
@@ -6957,11 +8330,7 @@ $\
   };
   const parseTrixDataAttribute = (element, name) => {
     try {
-      const data = JSON.parse(element.getAttribute("data-trix-".concat(name)));
-      if (data.contentType === "text/html" && data.content) {
-        data.content = HTMLSanitizer.sanitize(data.content).getHTML();
-      }
-      return data;
+      return JSON.parse(element.getAttribute("data-trix-".concat(name)));
     } catch (error) {
       return {};
     }
@@ -6986,11 +8355,13 @@ $\
     }
     constructor(html) {
       let {
-        referenceElement
+        referenceElement,
+        purifyOptions
       } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
       super(...arguments);
       this.html = html;
       this.referenceElement = referenceElement;
+      this.purifyOptions = purifyOptions;
       this.blocks = [];
       this.blockElements = [];
       this.processedElements = [];
@@ -7004,8 +8375,9 @@ $\
     parse() {
       try {
         this.createHiddenContainer();
-        const html = HTMLSanitizer.sanitize(this.html).getHTML();
-        this.containerElement.innerHTML = html;
+        HTMLSanitizer.setHTML(this.containerElement, this.html, {
+          purifyOptions: this.purifyOptions
+        });
         const walker = walkTree(this.containerElement, {
           usingFilter: nodeFilter
         });
@@ -7497,6 +8869,8 @@ $\
   ManagedAttachment.proxyMethod("attachment.isPending");
   ManagedAttachment.proxyMethod("attachment.isPreviewable");
   ManagedAttachment.proxyMethod("attachment.getURL");
+  ManagedAttachment.proxyMethod("attachment.getPreviewURL");
+  ManagedAttachment.proxyMethod("attachment.setPreviewURL");
   ManagedAttachment.proxyMethod("attachment.getHref");
   ManagedAttachment.proxyMethod("attachment.getFilename");
   ManagedAttachment.proxyMethod("attachment.getFilesize");
@@ -7685,7 +9059,11 @@ $\
       }
     }
     insertHTML(html) {
-      const document = HTMLParser.parse(html).getDocument();
+      const document = HTMLParser.parse(html, {
+        purifyOptions: {
+          SAFE_FOR_XML: true
+        }
+      }).getDocument();
       const selectedRange = this.getSelectedRange();
       this.setDocument(this.document.mergeDocumentAtRange(document, selectedRange));
       const startPosition = selectedRange[0];
@@ -10528,7 +11906,7 @@ $\
         return (_this$responder4 = this.responder) === null || _this$responder4 === void 0 ? void 0 : _this$responder4.deleteInDirection(direction);
       };
       const domRange = this.getTargetDOMRange({
-        minLength: 2
+        minLength: this.composing ? 1 : 2
       });
       if (domRange) {
         return this.withTargetDOMRange(domRange, perform);
@@ -10642,9 +12020,15 @@ $\
     },
     beforeinput(event) {
       const handler = this.constructor.inputTypes[event.inputType];
+      const immmediateRender = shouldRenderInmmediatelyToDealWithIOSDictation(event);
       if (handler) {
         this.withEvent(event, handler);
-        this.scheduleRender();
+        if (!immmediateRender) {
+          this.scheduleRender();
+        }
+      }
+      if (immmediateRender) {
+        this.render();
       }
     },
     input(event) {
@@ -10906,7 +12290,6 @@ $\
       }
     },
     insertFromPaste() {
-      var _dataTransfer$files;
       const {
         dataTransfer
       } = this.event;
@@ -10949,28 +12332,28 @@ $\
           var _this$delegate21;
           return (_this$delegate21 = this.delegate) === null || _this$delegate21 === void 0 ? void 0 : _this$delegate21.inputControllerDidPaste(paste);
         };
-      } else if (html) {
+      } else if (processableFilePaste(this.event)) {
         var _this$delegate22;
-        this.event.preventDefault();
-        paste.type = "text/html";
-        paste.html = html;
+        paste.type = "File";
+        paste.file = dataTransfer.files[0];
         (_this$delegate22 = this.delegate) === null || _this$delegate22 === void 0 || _this$delegate22.inputControllerWillPaste(paste);
         this.withTargetDOMRange(function () {
           var _this$responder34;
-          return (_this$responder34 = this.responder) === null || _this$responder34 === void 0 ? void 0 : _this$responder34.insertHTML(paste.html);
+          return (_this$responder34 = this.responder) === null || _this$responder34 === void 0 ? void 0 : _this$responder34.insertFile(paste.file);
         });
         this.afterRender = () => {
           var _this$delegate23;
           return (_this$delegate23 = this.delegate) === null || _this$delegate23 === void 0 ? void 0 : _this$delegate23.inputControllerDidPaste(paste);
         };
-      } else if ((_dataTransfer$files = dataTransfer.files) !== null && _dataTransfer$files !== void 0 && _dataTransfer$files.length) {
+      } else if (html) {
         var _this$delegate24;
-        paste.type = "File";
-        paste.file = dataTransfer.files[0];
+        this.event.preventDefault();
+        paste.type = "text/html";
+        paste.html = html;
         (_this$delegate24 = this.delegate) === null || _this$delegate24 === void 0 || _this$delegate24.inputControllerWillPaste(paste);
         this.withTargetDOMRange(function () {
           var _this$responder35;
-          return (_this$responder35 = this.responder) === null || _this$responder35 === void 0 ? void 0 : _this$responder35.insertFile(paste.file);
+          return (_this$responder35 = this.responder) === null || _this$responder35 === void 0 ? void 0 : _this$responder35.insertHTML(paste.html);
         });
         this.afterRender = () => {
           var _this$delegate25;
@@ -11031,10 +12414,20 @@ $\
     var _event$dataTransfer;
     return Array.from(((_event$dataTransfer = event.dataTransfer) === null || _event$dataTransfer === void 0 ? void 0 : _event$dataTransfer.types) || []).includes("Files");
   };
+  const processableFilePaste = event => {
+    var _event$dataTransfer$f;
+    // Paste events that only have files are handled by the paste event handler,
+    // to work around Safari not supporting beforeinput.insertFromPaste for files.
+
+    // MS Office text pastes include a file with a screenshot of the text, but we should
+    // handle them as text pastes.
+    return ((_event$dataTransfer$f = event.dataTransfer.files) === null || _event$dataTransfer$f === void 0 ? void 0 : _event$dataTransfer$f[0]) && !pasteEventHasFilesOnly(event) && !dataTransferIsMsOfficePaste(event);
+  };
   const pasteEventHasFilesOnly = function (event) {
     const clipboard = event.clipboardData;
     if (clipboard) {
-      return clipboard.types.includes("Files") && clipboard.types.length === 1 && clipboard.files.length >= 1;
+      const fileTypes = Array.from(clipboard.types).filter(type => type.match(/file/i)); // "Files", "application/x-moz-file"
+      return fileTypes.length === clipboard.types.length && clipboard.files.length >= 1;
     }
   };
   const pasteEventHasPlainTextOnly = function (event) {
@@ -11251,16 +12644,26 @@ $\
       return (_this$delegate6 = this.delegate) === null || _this$delegate6 === void 0 ? void 0 : _this$delegate6.toolbarDidShowDialog(dialogName);
     }
     setAttribute(dialogElement) {
+      var _this$delegate7;
       const attributeName = getAttributeName(dialogElement);
       const input = getInputForDialog(dialogElement, attributeName);
-      if (input.willValidate && !input.checkValidity()) {
-        input.setAttribute("data-trix-validate", "");
-        input.classList.add("trix-validate");
-        return input.focus();
+      if (input.willValidate) {
+        input.setCustomValidity("");
+        if (!input.checkValidity() || !this.isSafeAttribute(input)) {
+          input.setCustomValidity("Invalid value");
+          input.setAttribute("data-trix-validate", "");
+          input.classList.add("trix-validate");
+          return input.focus();
+        }
+      }
+      (_this$delegate7 = this.delegate) === null || _this$delegate7 === void 0 || _this$delegate7.toolbarDidUpdateAttribute(attributeName, input.value);
+      return this.hideDialog();
+    }
+    isSafeAttribute(input) {
+      if (input.hasAttribute("data-trix-validate-href")) {
+        return purify.isValidAttribute("a", "href", input.value);
       } else {
-        var _this$delegate7;
-        (_this$delegate7 = this.delegate) === null || _this$delegate7 === void 0 || _this$delegate7.toolbarDidUpdateAttribute(attributeName, input.value);
-        return this.hideDialog();
+        return true;
       }
     }
     removeAttribute(dialogElement) {
@@ -11700,7 +13103,7 @@ $\
     updateInputElement() {
       const element = this.compositionController.getSerializableElement();
       const value = serializeToContentType(element, "text/html");
-      return this.editorElement.setInputElementValue(value);
+      return this.editorElement.setFormValue(value);
     }
     notifyEditorElement(message, data) {
       switch (message) {
@@ -11861,6 +13264,22 @@ $\
         this.innerHTML = toolbar.getDefaultHTML();
       }
     }
+
+    // Properties
+
+    get editorElements() {
+      if (this.id) {
+        var _this$ownerDocument;
+        const nodeList = (_this$ownerDocument = this.ownerDocument) === null || _this$ownerDocument === void 0 ? void 0 : _this$ownerDocument.querySelectorAll("trix-editor[toolbar=\"".concat(this.id, "\"]"));
+        return Array.from(nodeList);
+      } else {
+        return [];
+      }
+    }
+    get editorElement() {
+      const [editorElement] = this.editorElements;
+      return editorElement;
+    }
   }
 
   let id = 0;
@@ -11878,7 +13297,7 @@ $\
     if (element.hasAttribute("contenteditable")) {
       return;
     }
-    element.setAttribute("contenteditable", "");
+    element.toggleAttribute("contenteditable", !element.disabled);
     return handleEventOnce("focus", {
       onElement: element,
       withCallback() {
@@ -11957,8 +13376,220 @@ $\
       };
     }
   }();
-  installDefaultCSSForTagName("trix-editor", "%t {\n    display: block;\n}\n\n%t:empty:not(:focus)::before {\n    content: attr(placeholder);\n    color: graytext;\n    cursor: text;\n    pointer-events: none;\n    white-space: pre-line;\n}\n\n%t a[contenteditable=false] {\n    cursor: text;\n}\n\n%t img {\n    max-width: 100%;\n    height: auto;\n}\n\n%t ".concat(attachmentSelector, " figcaption textarea {\n    resize: none;\n}\n\n%t ").concat(attachmentSelector, " figcaption textarea.trix-autoresize-clone {\n    position: absolute;\n    left: -9999px;\n    max-height: 0px;\n}\n\n%t ").concat(attachmentSelector, " figcaption[data-trix-placeholder]:empty::before {\n    content: attr(data-trix-placeholder);\n    color: graytext;\n}\n\n%t [data-trix-cursor-target] {\n    display: ").concat(cursorTargetStyles.display, " !important;\n    width: ").concat(cursorTargetStyles.width, " !important;\n    padding: 0 !important;\n    margin: 0 !important;\n    border: none !important;\n}\n\n%t [data-trix-cursor-target=left] {\n    vertical-align: top !important;\n    margin-left: -1px !important;\n}\n\n%t [data-trix-cursor-target=right] {\n    vertical-align: bottom !important;\n    margin-right: -1px !important;\n}"));
+  installDefaultCSSForTagName("trix-editor", "%t {\n    display: block;\n}\n\n%t:empty::before {\n    content: attr(placeholder);\n    color: graytext;\n    cursor: text;\n    pointer-events: none;\n    white-space: pre-line;\n}\n\n%t a[contenteditable=false] {\n    cursor: text;\n}\n\n%t img {\n    max-width: 100%;\n    height: auto;\n}\n\n%t ".concat(attachmentSelector, " figcaption textarea {\n    resize: none;\n}\n\n%t ").concat(attachmentSelector, " figcaption textarea.trix-autoresize-clone {\n    position: absolute;\n    left: -9999px;\n    max-height: 0px;\n}\n\n%t ").concat(attachmentSelector, " figcaption[data-trix-placeholder]:empty::before {\n    content: attr(data-trix-placeholder);\n    color: graytext;\n}\n\n%t [data-trix-cursor-target] {\n    display: ").concat(cursorTargetStyles.display, " !important;\n    width: ").concat(cursorTargetStyles.width, " !important;\n    padding: 0 !important;\n    margin: 0 !important;\n    border: none !important;\n}\n\n%t [data-trix-cursor-target=left] {\n    vertical-align: top !important;\n    margin-left: -1px !important;\n}\n\n%t [data-trix-cursor-target=right] {\n    vertical-align: bottom !important;\n    margin-right: -1px !important;\n}"));
+  var _internals = /*#__PURE__*/new WeakMap();
+  var _formDisabled = /*#__PURE__*/new WeakMap();
+  var _validate = /*#__PURE__*/new WeakSet();
+  class ElementInternalsDelegate {
+    constructor(element) {
+      _classPrivateMethodInitSpec(this, _validate);
+      _defineProperty(this, "value", "");
+      _classPrivateFieldInitSpec(this, _internals, {
+        writable: true,
+        value: void 0
+      });
+      _classPrivateFieldInitSpec(this, _formDisabled, {
+        writable: true,
+        value: void 0
+      });
+      this.element = element;
+      _classPrivateFieldSet(this, _internals, element.attachInternals());
+      _classPrivateFieldSet(this, _formDisabled, false);
+    }
+    connectedCallback() {
+      _classPrivateMethodGet(this, _validate, _validate2).call(this);
+    }
+    disconnectedCallback() {}
+    get form() {
+      return _classPrivateFieldGet(this, _internals).form;
+    }
+    get name() {
+      return this.element.getAttribute("name");
+    }
+    set name(value) {
+      this.element.setAttribute("name", value);
+    }
+    get labels() {
+      return _classPrivateFieldGet(this, _internals).labels;
+    }
+    get disabled() {
+      return _classPrivateFieldGet(this, _formDisabled) || this.element.hasAttribute("disabled");
+    }
+    set disabled(value) {
+      this.element.toggleAttribute("disabled", value);
+    }
+    get required() {
+      return this.element.hasAttribute("required");
+    }
+    set required(value) {
+      this.element.toggleAttribute("required", value);
+      _classPrivateMethodGet(this, _validate, _validate2).call(this);
+    }
+    get validity() {
+      return _classPrivateFieldGet(this, _internals).validity;
+    }
+    get validationMessage() {
+      return _classPrivateFieldGet(this, _internals).validationMessage;
+    }
+    get willValidate() {
+      return _classPrivateFieldGet(this, _internals).willValidate;
+    }
+    formDisabledCallback(disabled) {
+      _classPrivateFieldSet(this, _formDisabled, disabled);
+    }
+    setFormValue(value) {
+      this.value = value;
+      _classPrivateMethodGet(this, _validate, _validate2).call(this);
+      _classPrivateFieldGet(this, _internals).setFormValue(this.element.disabled ? undefined : this.value);
+    }
+    checkValidity() {
+      return _classPrivateFieldGet(this, _internals).checkValidity();
+    }
+    reportValidity() {
+      return _classPrivateFieldGet(this, _internals).reportValidity();
+    }
+    setCustomValidity(validationMessage) {
+      _classPrivateMethodGet(this, _validate, _validate2).call(this, validationMessage);
+    }
+  }
+  function _validate2() {
+    let customValidationMessage = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : "";
+    const {
+      required,
+      value
+    } = this.element;
+    const valueMissing = required && !value;
+    const customError = !!customValidationMessage;
+    const input = makeElement("input", {
+      required
+    });
+    const validationMessage = customValidationMessage || input.validationMessage;
+    _classPrivateFieldGet(this, _internals).setValidity({
+      valueMissing,
+      customError
+    }, validationMessage);
+  }
+  var _focusHandler = /*#__PURE__*/new WeakMap();
+  var _resetBubbled = /*#__PURE__*/new WeakMap();
+  var _clickBubbled = /*#__PURE__*/new WeakMap();
+  class LegacyDelegate {
+    constructor(element) {
+      _classPrivateFieldInitSpec(this, _focusHandler, {
+        writable: true,
+        value: void 0
+      });
+      _classPrivateFieldInitSpec(this, _resetBubbled, {
+        writable: true,
+        value: event => {
+          if (event.defaultPrevented) return;
+          if (event.target !== this.element.form) return;
+          this.element.reset();
+        }
+      });
+      _classPrivateFieldInitSpec(this, _clickBubbled, {
+        writable: true,
+        value: event => {
+          if (event.defaultPrevented) return;
+          if (this.element.contains(event.target)) return;
+          const label = findClosestElementFromNode(event.target, {
+            matchingSelector: "label"
+          });
+          if (!label) return;
+          if (!Array.from(this.labels).includes(label)) return;
+          this.element.focus();
+        }
+      });
+      this.element = element;
+    }
+    connectedCallback() {
+      _classPrivateFieldSet(this, _focusHandler, ensureAriaLabel(this.element));
+      window.addEventListener("reset", _classPrivateFieldGet(this, _resetBubbled), false);
+      window.addEventListener("click", _classPrivateFieldGet(this, _clickBubbled), false);
+    }
+    disconnectedCallback() {
+      var _classPrivateFieldGet2;
+      (_classPrivateFieldGet2 = _classPrivateFieldGet(this, _focusHandler)) === null || _classPrivateFieldGet2 === void 0 || _classPrivateFieldGet2.destroy();
+      window.removeEventListener("reset", _classPrivateFieldGet(this, _resetBubbled), false);
+      window.removeEventListener("click", _classPrivateFieldGet(this, _clickBubbled), false);
+    }
+    get labels() {
+      const labels = [];
+      if (this.element.id && this.element.ownerDocument) {
+        labels.push(...Array.from(this.element.ownerDocument.querySelectorAll("label[for='".concat(this.element.id, "']")) || []));
+      }
+      const label = findClosestElementFromNode(this.element, {
+        matchingSelector: "label"
+      });
+      if (label) {
+        if ([this.element, null].includes(label.control)) {
+          labels.push(label);
+        }
+      }
+      return labels;
+    }
+    get form() {
+      console.warn("This browser does not support the .form property for trix-editor elements.");
+      return null;
+    }
+    get name() {
+      console.warn("This browser does not support the .name property for trix-editor elements.");
+      return null;
+    }
+    set name(value) {
+      console.warn("This browser does not support the .name property for trix-editor elements.");
+    }
+    get disabled() {
+      console.warn("This browser does not support the [disabled] attribute for trix-editor elements.");
+      return false;
+    }
+    set disabled(value) {
+      console.warn("This browser does not support the [disabled] attribute for trix-editor elements.");
+    }
+    get required() {
+      console.warn("This browser does not support the [required] attribute for trix-editor elements.");
+      return false;
+    }
+    set required(value) {
+      console.warn("This browser does not support the [required] attribute for trix-editor elements.");
+    }
+    get validity() {
+      console.warn("This browser does not support the validity property for trix-editor elements.");
+      return null;
+    }
+    get validationMessage() {
+      console.warn("This browser does not support the validationMessage property for trix-editor elements.");
+      return "";
+    }
+    get willValidate() {
+      console.warn("This browser does not support the willValidate property for trix-editor elements.");
+      return false;
+    }
+    formDisabledCallback(value) {}
+    setFormValue(value) {}
+    checkValidity() {
+      console.warn("This browser does not support checkValidity() for trix-editor elements.");
+      return true;
+    }
+    reportValidity() {
+      console.warn("This browser does not support reportValidity() for trix-editor elements.");
+      return true;
+    }
+    setCustomValidity(validationMessage) {
+      console.warn("This browser does not support setCustomValidity(validationMessage) for trix-editor elements.");
+    }
+  }
+  var _delegate = /*#__PURE__*/new WeakMap();
   class TrixEditorElement extends HTMLElement {
+    constructor() {
+      super();
+      _classPrivateFieldInitSpec(this, _delegate, {
+        writable: true,
+        value: void 0
+      });
+      this.willCreateInput = true;
+      _classPrivateFieldSet(this, _delegate, this.constructor.formAssociated ? new ElementInternalsDelegate(this) : new LegacyDelegate(this));
+    }
+
     // Properties
 
     get trixId() {
@@ -11970,19 +13601,44 @@ $\
       }
     }
     get labels() {
-      const labels = [];
-      if (this.id && this.ownerDocument) {
-        labels.push(...Array.from(this.ownerDocument.querySelectorAll("label[for='".concat(this.id, "']")) || []));
+      return _classPrivateFieldGet(this, _delegate).labels;
+    }
+    get disabled() {
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        return inputElement.disabled;
+      } else {
+        return _classPrivateFieldGet(this, _delegate).disabled;
       }
-      const label = findClosestElementFromNode(this, {
-        matchingSelector: "label"
-      });
-      if (label) {
-        if ([this, null].includes(label.control)) {
-          labels.push(label);
-        }
+    }
+    set disabled(value) {
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        inputElement.disabled = value;
       }
-      return labels;
+      _classPrivateFieldGet(this, _delegate).disabled = value;
+    }
+    get required() {
+      return _classPrivateFieldGet(this, _delegate).required;
+    }
+    set required(value) {
+      _classPrivateFieldGet(this, _delegate).required = value;
+    }
+    get validity() {
+      return _classPrivateFieldGet(this, _delegate).validity;
+    }
+    get validationMessage() {
+      return _classPrivateFieldGet(this, _delegate).validationMessage;
+    }
+    get willValidate() {
+      return _classPrivateFieldGet(this, _delegate).willValidate;
+    }
+    get type() {
+      return this.localName;
     }
     get toolbarElement() {
       if (this.hasAttribute("toolbar")) {
@@ -11991,32 +13647,29 @@ $\
       } else if (this.parentNode) {
         const toolbarId = "trix-toolbar-".concat(this.trixId);
         this.setAttribute("toolbar", toolbarId);
-        const element = makeElement("trix-toolbar", {
+        this.internalToolbar = makeElement("trix-toolbar", {
           id: toolbarId
         });
-        this.parentNode.insertBefore(element, this);
-        return element;
+        this.parentNode.insertBefore(this.internalToolbar, this);
+        return this.internalToolbar;
       } else {
         return undefined;
       }
     }
     get form() {
-      var _this$inputElement;
-      return (_this$inputElement = this.inputElement) === null || _this$inputElement === void 0 ? void 0 : _this$inputElement.form;
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        return inputElement.form;
+      } else {
+        return _classPrivateFieldGet(this, _delegate).form;
+      }
     }
     get inputElement() {
       if (this.hasAttribute("input")) {
         var _this$ownerDocument2;
         return (_this$ownerDocument2 = this.ownerDocument) === null || _this$ownerDocument2 === void 0 ? void 0 : _this$ownerDocument2.getElementById(this.getAttribute("input"));
-      } else if (this.parentNode) {
-        const inputId = "trix-input-".concat(this.trixId);
-        this.setAttribute("input", inputId);
-        const element = makeElement("input", {
-          type: "hidden",
-          id: inputId
-        });
-        this.parentNode.insertBefore(element, this.nextElementSibling);
-        return element;
       } else {
         return undefined;
       }
@@ -12026,17 +13679,47 @@ $\
       return (_this$editorControlle = this.editorController) === null || _this$editorControlle === void 0 ? void 0 : _this$editorControlle.editor;
     }
     get name() {
-      var _this$inputElement2;
-      return (_this$inputElement2 = this.inputElement) === null || _this$inputElement2 === void 0 ? void 0 : _this$inputElement2.name;
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        return inputElement.name;
+      } else {
+        return _classPrivateFieldGet(this, _delegate).name;
+      }
+    }
+    set name(value) {
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        inputElement.name = value;
+      } else {
+        _classPrivateFieldGet(this, _delegate).name = value;
+      }
     }
     get value() {
-      var _this$inputElement3;
-      return (_this$inputElement3 = this.inputElement) === null || _this$inputElement3 === void 0 ? void 0 : _this$inputElement3.value;
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        return inputElement.value;
+      } else {
+        return _classPrivateFieldGet(this, _delegate).value;
+      }
     }
     set value(defaultValue) {
       var _this$editor;
       this.defaultValue = defaultValue;
       (_this$editor = this.editor) === null || _this$editor === void 0 || _this$editor.loadHTML(this.defaultValue);
+    }
+
+    // Element callbacks
+
+    attributeChangedCallback(name, oldValue, newValue) {
+      if (name === "connected" && this.isConnected && oldValue != null && oldValue !== newValue) {
+        requestAnimationFrame(() => this.reconnect());
+      }
     }
 
     // Controller delegate methods
@@ -12049,10 +13732,14 @@ $\
         });
       }
     }
-    setInputElementValue(value) {
-      if (this.inputElement) {
-        this.inputElement.value = value;
+    setFormValue(value) {
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        inputElement.value = value;
       }
+      _classPrivateFieldGet(this, _delegate).setFormValue(value);
     }
 
     // Element lifecycle
@@ -12061,67 +13748,81 @@ $\
       if (!this.hasAttribute("data-trix-internal")) {
         makeEditable(this);
         addAccessibilityRole(this);
-        ensureAriaLabel(this);
         if (!this.editorController) {
           triggerEvent("trix-before-initialize", {
             onElement: this
           });
+          this.defaultValue = this.inputElement ? this.inputElement.value : this.innerHTML;
+          if (!this.hasAttribute("input") && this.parentNode && this.willCreateInput) {
+            const inputId = "trix-input-".concat(this.trixId);
+            this.setAttribute("input", inputId);
+            const element = makeElement("input", {
+              type: "hidden",
+              id: inputId
+            });
+            this.parentNode.insertBefore(element, this.nextElementSibling);
+          }
           this.editorController = new EditorController({
             editorElement: this,
-            html: this.defaultValue = this.value
+            html: this.defaultValue
           });
           requestAnimationFrame(() => triggerEvent("trix-initialize", {
             onElement: this
           }));
         }
         this.editorController.registerSelectionManager();
-        this.registerResetListener();
-        this.registerClickListener();
+        _classPrivateFieldGet(this, _delegate).connectedCallback();
+        this.toggleAttribute("connected", true);
         autofocus(this);
       }
     }
     disconnectedCallback() {
       var _this$editorControlle2;
       (_this$editorControlle2 = this.editorController) === null || _this$editorControlle2 === void 0 || _this$editorControlle2.unregisterSelectionManager();
-      this.unregisterResetListener();
-      return this.unregisterClickListener();
+      _classPrivateFieldGet(this, _delegate).disconnectedCallback();
+      this.toggleAttribute("connected", false);
+    }
+    reconnect() {
+      this.removeInternalToolbar();
+      this.disconnectedCallback();
+      this.connectedCallback();
+    }
+    removeInternalToolbar() {
+      var _this$internalToolbar;
+      (_this$internalToolbar = this.internalToolbar) === null || _this$internalToolbar === void 0 || _this$internalToolbar.remove();
+      this.internalToolbar = null;
     }
 
     // Form support
 
-    registerResetListener() {
-      this.resetListener = this.resetBubbled.bind(this);
-      return window.addEventListener("reset", this.resetListener, false);
+    checkValidity() {
+      return _classPrivateFieldGet(this, _delegate).checkValidity();
     }
-    unregisterResetListener() {
-      return window.removeEventListener("reset", this.resetListener, false);
+    reportValidity() {
+      return _classPrivateFieldGet(this, _delegate).reportValidity();
     }
-    registerClickListener() {
-      this.clickListener = this.clickBubbled.bind(this);
-      return window.addEventListener("click", this.clickListener, false);
+    setCustomValidity(validationMessage) {
+      _classPrivateFieldGet(this, _delegate).setCustomValidity(validationMessage);
     }
-    unregisterClickListener() {
-      return window.removeEventListener("click", this.clickListener, false);
+    formDisabledCallback(disabled) {
+      const {
+        inputElement
+      } = this;
+      if (inputElement) {
+        inputElement.disabled = disabled;
+      }
+      this.toggleAttribute("contenteditable", !disabled);
+      _classPrivateFieldGet(this, _delegate).formDisabledCallback(disabled);
     }
-    resetBubbled(event) {
-      if (event.defaultPrevented) return;
-      if (event.target !== this.form) return;
-      return this.reset();
-    }
-    clickBubbled(event) {
-      if (event.defaultPrevented) return;
-      if (this.contains(event.target)) return;
-      const label = findClosestElementFromNode(event.target, {
-        matchingSelector: "label"
-      });
-      if (!label) return;
-      if (!Array.from(this.labels).includes(label)) return;
-      return this.focus();
+    formResetCallback() {
+      this.reset();
     }
     reset() {
       this.value = this.defaultValue;
     }
   }
+  _defineProperty(TrixEditorElement, "formAssociated", "ElementInternals" in window);
+  _defineProperty(TrixEditorElement, "observedAttributes", ["connected"]);
 
   var elements = /*#__PURE__*/Object.freeze({
     __proto__: null,
