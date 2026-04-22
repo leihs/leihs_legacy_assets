@@ -67755,8 +67755,58 @@ window.FieldSwitch = {
       }
     },
 
+    _modelEntryMap: function (sr) {
+      var map = {};
+      sr.inventory.data.forEach(function (entry) {
+        if (entry.type == 'model') {
+          map[entry.id] = entry;
+        }
+      });
+      return map;
+    },
+
+    _modelLabelFromEntry: function (entry) {
+      if (!entry) {
+        return '';
+      }
+      var label = entry.product || '';
+      if (entry.version) {
+        label += ' ' + entry.version;
+      }
+      return label.trim();
+    },
+
+    _searchResultPageFlatByInventoryCode: function (sr) {
+      var self = this;
+      var modelsById = this._modelEntryMap(sr);
+      var items = sr.inventory.items || [];
+      var rows = [];
+
+      items.forEach(function (item) {
+        var modelEntry = modelsById[item.model_id];
+        var label = self._modelLabelFromEntry(modelEntry);
+        var key = modelEntry ? String(modelEntry.model_type || 'model').toLowerCase() : 'model';
+        var is_package = modelEntry && modelEntry.model_is_package;
+        var is_child = !!item.parent_id;
+        var child_count = 0;
+        if (is_package && !is_child) {
+          child_count = items.filter(function (ch) {
+            return ch.parent_id == item.id;
+          }).length;
+        }
+
+        rows.push(self._searchResultItem(key, item, is_package && !is_child, child_count, is_child, label));
+      });
+      return rows;
+    },
+
     _searchResultPage: function (sr) {
       var _this4 = this;
+
+      var renderType = 'new';
+      if (renderType == 'new') {
+        return this._searchResultPageFlatByInventoryCode(sr);
+      }
 
       return sr.inventory.data.map(function (entry) {
         return _this4._searchResultLine(sr, entry);
@@ -71787,7 +71837,7 @@ var _extends = Object.assign || function (target) { for (var i = 1; i < argument
     popupRef: null,
 
     componentWillReceiveProps: function (nextProps) {
-
+      this.setState({ rectangle: nextProps.popupRef.getBoundingClientRect() });
       if (nextProps.popupRef != this.popupRef) {
 
         if (this.popupRef) {
