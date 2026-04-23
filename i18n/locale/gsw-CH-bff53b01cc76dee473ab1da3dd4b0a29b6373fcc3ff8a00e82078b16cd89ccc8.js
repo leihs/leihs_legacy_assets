@@ -2650,6 +2650,10 @@ window.i18n.locale_data = {
          null,
          "Inventar-Verwalter"
       ],
+      "New": [
+         null,
+         "Neu"
+      ],
       "New Delegation": [
          null,
          "Noii Delegation"

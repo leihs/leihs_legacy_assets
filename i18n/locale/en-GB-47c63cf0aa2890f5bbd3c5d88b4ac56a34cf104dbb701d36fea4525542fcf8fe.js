@@ -2618,6 +2618,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "New": [
+         null,
+         ""
+      ],
       "New User": [
          null,
          ""

@@ -343,6 +343,10 @@ window.i18n.locale_data = {
          null,
          "Modelo agregado correctamente como compatible"
       ],
+      "New": [
+         null,
+         "Nuevo"
+      ],
       "New item created.": [
          null,
          "Nuevo elemento creado"
