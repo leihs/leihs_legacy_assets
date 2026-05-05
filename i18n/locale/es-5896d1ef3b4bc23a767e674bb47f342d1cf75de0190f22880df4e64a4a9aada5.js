@@ -309,7 +309,7 @@ window.i18n.locale_data = {
       ],
       "Latest 10 emails": [
          null,
-         "Latest 10 emails"
+         "Últimos 10 correos electrónicos"
       ],
       "List of available variables": [
          null,
@@ -342,10 +342,6 @@ window.i18n.locale_data = {
       "Model successfully added as compatible": [
          null,
          "Modelo agregado correctamente como compatible"
-      ],
-      "New": [
-         null,
-         "Nuevo"
       ],
       "New item created.": [
          null,
@@ -634,6 +630,10 @@ window.i18n.locale_data = {
       "Today": [
          null,
          "Hoy"
+      ],
+      "Total price (indicative value)": [
+         null,
+         "Precio total (valor indicativo)"
       ],
       "Too many users found": [
          null,

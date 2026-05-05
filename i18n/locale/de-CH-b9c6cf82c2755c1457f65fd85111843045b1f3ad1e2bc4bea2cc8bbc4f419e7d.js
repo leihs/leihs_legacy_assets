@@ -1049,7 +1049,7 @@ window.i18n.locale_data = {
       ],
       "Latest 10 emails": [
          null,
-         "Neueste 10 E-Mails"
+         "Letzte 10 E-Mails"
       ],
       "Legend": [
          null,
@@ -1524,6 +1524,10 @@ window.i18n.locale_data = {
       "Quantity allocations": [
          null,
          "Anzahl-Zuteilungen"
+      ],
+      "Total price (indicative value)": [
+         null,
+         "Gesamtpreis (Richtwert)"
       ],
       "Total quantity": [
          null,

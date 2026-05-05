@@ -1460,10 +1460,6 @@ window.i18n.locale_data = {
          null,
          "Zueteilige"
       ],
-      "Total price (indicative value)": [
-         null,
-         "Totalprüs (Richtwärt)"
-      ],
       "Total quantity": [
          null,
          "Total Aazahl"
@@ -2653,14 +2649,6 @@ window.i18n.locale_data = {
       "Inventory manager": [
          null,
          "Inventar-Verwalter"
-      ],
-      "New": [
-         null,
-         "Neu"
-      ],
-      "New inventory badge": [
-         null,
-         "Neu"
       ],
       "New Delegation": [
          null,
