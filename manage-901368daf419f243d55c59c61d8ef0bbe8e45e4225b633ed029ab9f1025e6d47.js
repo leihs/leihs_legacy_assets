@@ -663,25 +663,27 @@
 
 }).call(this);
 /*
- * jQuery postMessage Transport Plugin 1.1.1
+ * jQuery postMessage Transport Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2011, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  */
 
-/*jslint unparam: true, nomen: true */
-/*global define, window, document */
+/* global define, require, window, document */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
         define(['jquery'], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(require('jquery'));
     } else {
         // Browser globals:
         factory(window.jQuery);
@@ -727,6 +729,12 @@
                 loc = $('<a>').prop('href', options.postMessage)[0],
                 target = loc.protocol + '//' + loc.host,
                 xhrUpload = options.xhr().upload;
+            // IE always includes the port for the host property of a link
+            // element, but not in the location.host or origin property for the
+            // default http port 80 and https port 443, so we strip it:
+            if (/^(http:\/\/.+:80)|(https:\/\/.+:443)$/.test(target)) {
+              target = target.replace(/:(80|443)$/, '');
+            }
             return {
                 send: function (_, completeCallback) {
                     counter += 1;
@@ -782,28 +790,30 @@
 
 }));
 /*
- * jQuery XDomainRequest Transport Plugin 1.1.3
+ * jQuery XDomainRequest Transport Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2011, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  *
  * Based on Julian Aubourg's ajaxHooks xdr.js:
  * https://github.com/jaubourg/ajaxHooks/
  */
 
-/*jslint unparam: true */
-/*global define, window, XDomainRequest */
+/* global define, require, window, XDomainRequest */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
         define(['jquery'], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(require('jquery'));
     } else {
         // Browser globals:
         factory(window.jQuery);
@@ -870,28 +880,34 @@
     }
 }));
 /*
- * jQuery File Upload Plugin 5.37.0
+ * jQuery File Upload Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2010, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  */
 
-/*jslint nomen: true, unparam: true, regexp: true */
-/*global define, window, document, location, File, Blob, FormData */
+/* jshint nomen:false */
+/* global define, require, window, document, location, Blob, FormData */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
         define([
             'jquery',
-            'jquery.ui.widget'
+            'jquery-ui/ui/widget'
         ], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(
+            require('jquery'),
+            require('./vendor/jquery.ui.widget')
+        );
     } else {
         // Browser globals:
         factory(window.jQuery);
@@ -909,7 +925,7 @@
             '|(Kindle/(1\\.0|2\\.[05]|3\\.0))'
     ).test(window.navigator.userAgent) ||
         // Feature detection for all other devices:
-        $('<input type="file">').prop('disabled'));
+        $('<input type="file"/>').prop('disabled'));
 
     // The FileReader API is not actually used, but works as feature detection,
     // as some Safari versions (5?) support XHR file uploads via the FormData API,
@@ -922,6 +938,25 @@
     // Detect support for Blob slicing (required for chunked uploads):
     $.support.blobSlice = window.Blob && (Blob.prototype.slice ||
         Blob.prototype.webkitSlice || Blob.prototype.mozSlice);
+
+    // Helper function to create drag handlers for dragover/dragenter/dragleave:
+    function getDragHandler(type) {
+        var isDragOver = type === 'dragover';
+        return function (e) {
+            e.dataTransfer = e.originalEvent && e.originalEvent.dataTransfer;
+            var dataTransfer = e.dataTransfer;
+            if (dataTransfer && $.inArray('Files', dataTransfer.types) !== -1 &&
+                    this._trigger(
+                        type,
+                        $.Event(type, {delegatedEvent: e})
+                    ) !== false) {
+                e.preventDefault();
+                if (isDragOver) {
+                    dataTransfer.dropEffect = 'copy';
+                }
+            }
+        };
+    }
 
     // The fileupload widget listens for change events on file input fields defined
     // via fileInput setting and paste or drop events of the given dropZone.
@@ -937,9 +972,9 @@
             // The drop target element(s), by the default the complete document.
             // Set to null to disable drag & drop support:
             dropZone: $(document),
-            // The paste target element(s), by the default the complete document.
-            // Set to null to disable paste support:
-            pasteZone: $(document),
+            // The paste target element(s), by the default undefined.
+            // Set to a DOM node or jQuery object to enable file pasting:
+            pasteZone: undefined,
             // The file input field(s), that are listened to for change events.
             // If undefined, it is set to the file input fields inside
             // of the widget element on plugin initialization.
@@ -962,6 +997,14 @@
             // To limit the number of files uploaded with one XHR request,
             // set the following option to an integer greater than 0:
             limitMultiFileUploads: undefined,
+            // The following option limits the number of files uploaded with one
+            // XHR request to keep the request size under or equal to the defined
+            // limit in bytes:
+            limitMultiFileUploadSize: undefined,
+            // Multipart file uploads add a number of bytes to each uploaded file,
+            // therefore the following option adds an overhead for each file used
+            // in the limitMultiFileUploadSize configuration:
+            limitMultiFileUploadSizeOverhead: 512,
             // Set the following option to true to issue all file upload requests
             // in a sequential order:
             sequentialUploads: false,
@@ -1116,7 +1159,8 @@
             // The following are jQuery ajax settings required for the file uploads:
             processData: false,
             contentType: false,
-            cache: false
+            cache: false,
+            timeout: 0
         },
 
         // A list of options that require reinitializing event listeners and/or
@@ -1157,7 +1201,7 @@
 
         _getFormData: function (options) {
             var formData;
-            if (typeof options.formData === 'function') {
+            if ($.type(options.formData) === 'function') {
                 return options.formData(options.form);
             }
             if ($.isArray(options.formData)) {
@@ -1283,17 +1327,18 @@
                 file = options.files[0],
                 // Ignore non-multipart setting if not supported:
                 multipart = options.multipart || !$.support.xhrFileUpload,
-                paramName = options.paramName[0];
+                paramName = $.type(options.paramName) === 'array' ?
+                    options.paramName[0] : options.paramName;
             options.headers = $.extend({}, options.headers);
             if (options.contentRange) {
                 options.headers['Content-Range'] = options.contentRange;
             }
             if (!multipart || options.blob || !this._isInstanceOf('File', file)) {
                 options.headers['Content-Disposition'] = 'attachment; filename="' +
-                    encodeURI(file.name) + '"';
+                    encodeURI(file.uploadName || file.name) + '"';
             }
             if (!multipart) {
-                options.contentType = file.type;
+                options.contentType = file.type || 'application/octet-stream';
                 options.data = options.blob || file;
             } else if ($.support.xhrFormDataFileUpload) {
                 if (options.postMessage) {
@@ -1310,7 +1355,8 @@
                     } else {
                         $.each(options.files, function (index, file) {
                             formData.push({
-                                name: options.paramName[index] || paramName,
+                                name: ($.type(options.paramName) === 'array' &&
+                                    options.paramName[index]) || paramName,
                                 value: file
                             });
                         });
@@ -1325,7 +1371,11 @@
                         });
                     }
                     if (options.blob) {
-                        formData.append(paramName, options.blob, file.name);
+                        formData.append(
+                            paramName,
+                            options.blob,
+                            file.uploadName || file.name
+                        );
                     } else {
                         $.each(options.files, function (index, file) {
                             // This check allows the tests to run with
@@ -1333,7 +1383,8 @@
                             if (that._isInstanceOf('File', file) ||
                                     that._isInstanceOf('Blob', file)) {
                                 formData.append(
-                                    options.paramName[index] || paramName,
+                                    ($.type(options.paramName) === 'array' &&
+                                        options.paramName[index]) || paramName,
                                     file,
                                     file.uploadName || file.name
                                 );
@@ -1487,7 +1538,7 @@
             data.process = function (resolveFunc, rejectFunc) {
                 if (resolveFunc || rejectFunc) {
                     data._processQueue = this._processQueue =
-                        (this._processQueue || getPromise([this])).pipe(
+                        (this._processQueue || getPromise([this])).then(
                             function () {
                                 if (data.errorThrown) {
                                     return $.Deferred()
@@ -1495,7 +1546,7 @@
                                 }
                                 return getPromise(arguments);
                             }
-                        ).pipe(resolveFunc, rejectFunc);
+                        ).then(resolveFunc, rejectFunc);
                 }
                 return this._processQueue || getPromise([this]);
             };
@@ -1515,7 +1566,8 @@
                     return this.jqXHR.abort();
                 }
                 this.errorThrown = 'abort';
-                return that._getXHRPromise();
+                that._trigger('fail', null, this);
+                return that._getXHRPromise(false);
             };
             data.state = function () {
                 if (this.jqXHR) {
@@ -1564,7 +1616,7 @@
                 promise = dfd.promise(),
                 jqXHR,
                 upload;
-            if (!(this._isXHRUpload(options) && slice && (ub || mcs < fs)) ||
+            if (!(this._isXHRUpload(options) && slice && (ub || ($.type(mcs) === 'function' ? mcs(options) : mcs) < fs)) ||
                     options.data) {
                 return false;
             }
@@ -1587,7 +1639,7 @@
                 o.blob = slice.call(
                     file,
                     ub,
-                    ub + mcs,
+                    ub + ($.type(mcs) === 'function' ? mcs(o) : mcs),
                     file.type
                 );
                 // Store the current chunk size, as the blob itself
@@ -1779,9 +1831,9 @@
                 if (this.options.limitConcurrentUploads > 1) {
                     slot = $.Deferred();
                     this._slots.push(slot);
-                    pipe = slot.pipe(send);
+                    pipe = slot.then(send);
                 } else {
-                    this._sequence = this._sequence.pipe(send, send);
+                    this._sequence = this._sequence.then(send, send);
                     pipe = this._sequence;
                 }
                 // Return the piped Promise object, enhanced with an abort method,
@@ -1806,32 +1858,62 @@
             var that = this,
                 result = true,
                 options = $.extend({}, this.options, data),
+                files = data.files,
+                filesLength = files.length,
                 limit = options.limitMultiFileUploads,
+                limitSize = options.limitMultiFileUploadSize,
+                overhead = options.limitMultiFileUploadSizeOverhead,
+                batchSize = 0,
                 paramName = this._getParamName(options),
                 paramNameSet,
                 paramNameSlice,
                 fileSet,
-                i;
-            if (!(options.singleFileUploads || limit) ||
+                i,
+                j = 0;
+            if (!filesLength) {
+                return false;
+            }
+            if (limitSize && files[0].size === undefined) {
+                limitSize = undefined;
+            }
+            if (!(options.singleFileUploads || limit || limitSize) ||
                     !this._isXHRUpload(options)) {
-                fileSet = [data.files];
+                fileSet = [files];
                 paramNameSet = [paramName];
-            } else if (!options.singleFileUploads && limit) {
+            } else if (!(options.singleFileUploads || limitSize) && limit) {
                 fileSet = [];
                 paramNameSet = [];
-                for (i = 0; i < data.files.length; i += limit) {
-                    fileSet.push(data.files.slice(i, i + limit));
+                for (i = 0; i < filesLength; i += limit) {
+                    fileSet.push(files.slice(i, i + limit));
                     paramNameSlice = paramName.slice(i, i + limit);
                     if (!paramNameSlice.length) {
                         paramNameSlice = paramName;
                     }
                     paramNameSet.push(paramNameSlice);
                 }
+            } else if (!options.singleFileUploads && limitSize) {
+                fileSet = [];
+                paramNameSet = [];
+                for (i = 0; i < filesLength; i = i + 1) {
+                    batchSize += files[i].size + overhead;
+                    if (i + 1 === filesLength ||
+                            ((batchSize + files[i + 1].size + overhead) > limitSize) ||
+                            (limit && i + 1 - j >= limit)) {
+                        fileSet.push(files.slice(j, i + 1));
+                        paramNameSlice = paramName.slice(j, i + 1);
+                        if (!paramNameSlice.length) {
+                            paramNameSlice = paramName;
+                        }
+                        paramNameSet.push(paramNameSlice);
+                        j = i + 1;
+                        batchSize = 0;
+                    }
+                }
             } else {
                 paramNameSet = paramName;
             }
-            data.originalFiles = data.files;
-            $.each(fileSet || data.files, function (index, element) {
+            data.originalFiles = files;
+            $.each(fileSet || files, function (index, element) {
                 var newData = $.extend({}, data);
                 newData.files = fileSet ? element : [element];
                 newData.paramName = paramNameSet[index];
@@ -1848,12 +1930,21 @@
             return result;
         },
 
-        _replaceFileInput: function (input) {
-            var inputClone = input.clone(true);
+        _replaceFileInput: function (data) {
+            var input = data.fileInput,
+                inputClone = input.clone(true),
+                restoreFocus = input.is(document.activeElement);
+            // Add a reference for the new cloned file input to the data argument:
+            data.fileInputClone = inputClone;
             $('<form></form>').append(inputClone)[0].reset();
             // Detaching allows to insert the fileInput on another form
             // without loosing the file input value:
             input.after(inputClone).detach();
+            // If the fileInput had focus before it was detached,
+            // restore focus to the inputClone.
+            if (restoreFocus) {
+                inputClone.focus();
+            }
             // Avoid memory leaks with the detached file input:
             $.cleanData(input.unbind('remove'));
             // Replace the original file input element in the fileInput
@@ -1875,6 +1966,8 @@
         _handleFileTreeEntry: function (entry, path) {
             var that = this,
                 dfd = $.Deferred(),
+                entries = [],
+                dirReader,
                 errorHandler = function (e) {
                     if (e && !e.entry) {
                         e.entry = entry;
@@ -1885,7 +1978,24 @@
                     // to be returned together in one set:
                     dfd.resolve([e]);
                 },
-                dirReader;
+                successHandler = function (entries) {
+                    that._handleFileTreeEntries(
+                        entries,
+                        path + entry.name + '/'
+                    ).done(function (files) {
+                        dfd.resolve(files);
+                    }).fail(errorHandler);
+                },
+                readEntries = function () {
+                    dirReader.readEntries(function (results) {
+                        if (!results.length) {
+                            successHandler(entries);
+                        } else {
+                            entries = entries.concat(results);
+                            readEntries();
+                        }
+                    }, errorHandler);
+                };
             path = path || '';
             if (entry.isFile) {
                 if (entry._file) {
@@ -1900,16 +2010,9 @@
                 }
             } else if (entry.isDirectory) {
                 dirReader = entry.createReader();
-                dirReader.readEntries(function (entries) {
-                    that._handleFileTreeEntries(
-                        entries,
-                        path + entry.name + '/'
-                    ).done(function (files) {
-                        dfd.resolve(files);
-                    }).fail(errorHandler);
-                }, errorHandler);
+                readEntries();
             } else {
-                // Return an empy list for file system items
+                // Return an empty list for file system items
                 // other than files or directories:
                 dfd.resolve([]);
             }
@@ -1923,7 +2026,7 @@
                 $.map(entries, function (entry) {
                     return that._handleFileTreeEntry(entry, path);
                 })
-            ).pipe(function () {
+            ).then(function () {
                 return Array.prototype.concat.apply(
                     [],
                     arguments
@@ -1992,7 +2095,7 @@
             return $.when.apply(
                 $,
                 $.map(fileInput, this._getSingleFileInputFiles)
-            ).pipe(function () {
+            ).then(function () {
                 return Array.prototype.concat.apply(
                     [],
                     arguments
@@ -2009,7 +2112,7 @@
             this._getFileInputFiles(data.fileInput).always(function (files) {
                 data.files = files;
                 if (that.options.replaceFileInput) {
-                    that._replaceFileInput(data.fileInput);
+                    that._replaceFileInput(data);
                 }
                 if (that._trigger(
                         'change',
@@ -2062,24 +2165,21 @@
             }
         },
 
-        _onDragOver: function (e) {
-            e.dataTransfer = e.originalEvent && e.originalEvent.dataTransfer;
-            var dataTransfer = e.dataTransfer;
-            if (dataTransfer && $.inArray('Files', dataTransfer.types) !== -1 &&
-                    this._trigger(
-                        'dragover',
-                        $.Event('dragover', {delegatedEvent: e})
-                    ) !== false) {
-                e.preventDefault();
-                dataTransfer.dropEffect = 'copy';
-            }
-        },
+        _onDragOver: getDragHandler('dragover'),
+
+        _onDragEnter: getDragHandler('dragenter'),
+
+        _onDragLeave: getDragHandler('dragleave'),
 
         _initEventHandlers: function () {
             if (this._isXHRUpload(this.options)) {
                 this._on(this.options.dropZone, {
                     dragover: this._onDragOver,
-                    drop: this._onDrop
+                    drop: this._onDrop,
+                    // event.preventDefault() on dragenter is required for IE10+:
+                    dragenter: this._onDragEnter,
+                    // dragleave is not required, but added for completeness:
+                    dragleave: this._onDragLeave
                 });
                 this._on(this.options.pasteZone, {
                     paste: this._onPaste
@@ -2093,9 +2193,13 @@
         },
 
         _destroyEventHandlers: function () {
-            this._off(this.options.dropZone, 'dragover drop');
+            this._off(this.options.dropZone, 'dragenter dragleave dragover drop');
             this._off(this.options.pasteZone, 'paste');
             this._off(this.options.fileInput, 'change');
+        },
+
+        _destroy: function () {
+            this._destroyEventHandlers();
         },
 
         _setOption: function (key, value) {
@@ -2140,15 +2244,25 @@
 
         _initDataAttributes: function () {
             var that = this,
-                options = this.options;
+                options = this.options,
+                data = this.element.data();
             // Initialize options set via HTML5 data-attributes:
             $.each(
-                $(this.element[0].cloneNode(false)).data(),
-                function (key, value) {
-                    if (that._isRegExpOption(key, value)) {
-                        value = that._getRegExp(value);
+                this.element[0].attributes,
+                function (index, attr) {
+                    var key = attr.name.toLowerCase(),
+                        value;
+                    if (/^data-/.test(key)) {
+                        // Convert hyphen-ated key to camelCase:
+                        key = key.slice(5).replace(/-[a-z]/g, function (str) {
+                            return str.charAt(1).toUpperCase();
+                        });
+                        value = data[key];
+                        if (that._isRegExpOption(key, value)) {
+                            value = that._getRegExp(value);
+                        }
+                        options[key] = value;
                     }
-                    options[key] = value;
                 }
             );
         },
@@ -2228,7 +2342,8 @@
                                 return;
                             }
                             data.files = files;
-                            jqXHR = that._onSend(null, data).then(
+                            jqXHR = that._onSend(null, data);
+                            jqXHR.then(
                                 function (result, textStatus, jqXHR) {
                                     dfd.resolve(result, textStatus, jqXHR);
                                 },
@@ -2252,21 +2367,21 @@
 
 }));
 /*
- * jQuery File Upload Processing Plugin 1.3.0
+ * jQuery File Upload Processing Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2012, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  */
 
-/*jslint nomen: true, unparam: true */
-/*global define, window */
+/* jshint nomen:false */
+/* global define, require, window */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
@@ -2274,6 +2389,12 @@
             'jquery',
             './jquery.fileupload'
         ], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(
+            require('jquery'),
+            require('./jquery.fileupload')
+        );
     } else {
         // Browser globals:
         factory(
@@ -2335,7 +2456,7 @@
                         settings
                     );
                 };
-                chain = chain.pipe(func, settings.always && func);
+                chain = chain.then(func, settings.always && func);
             });
             chain
                 .done(function () {
@@ -2402,7 +2523,7 @@
                         };
                     opts.index = index;
                     that._processing += 1;
-                    that._processingQueue = that._processingQueue.pipe(func, func)
+                    that._processingQueue = that._processingQueue.then(func, func)
                         .always(function () {
                             that._processing -= 1;
                             if (that._processing === 0) {
@@ -2811,12 +2932,45 @@
     anyProblems: function() {
       return !!this.getProblems().length;
     },
+    _isSoftOverbooked: function(avail, reservationsToExclude) {
+      return _.any(avail.changes, (function(_this) {
+        return function(change) {
+          return _.any(change[2], function(allocation) {
+            return _.any(reservationsToExclude, function(line) {
+              return (allocation.running_reservations != null) && _.include(allocation.running_reservations, line.id) && !avail.groupIsIn(line.user().groupIds, allocation.group_id);
+            });
+          });
+        };
+      })(this));
+    },
+    effectiveAvailableForUser: function() {
+      var avail, maxAvailableForUser, quantity, reservationsToExclude;
+      if (this.model_id == null) {
+        return null;
+      }
+      avail = this.model().availability();
+      if (avail == null) {
+        return null;
+      }
+      reservationsToExclude = this.subreservations != null ? this.subreservations : [this];
+      maxAvailableForUser = avail.withoutLines(reservationsToExclude).maxAvailableForGroups(this.start_date, this.end_date, this.user().groupIds);
+      quantity = this.subreservations != null ? _.reduce(this.subreservations, (function(mem, l) {
+        return mem + l.quantity;
+      }), 0) : this.quantity;
+      if (this._isSoftOverbooked(avail, reservationsToExclude)) {
+        return maxAvailableForUser - quantity;
+      } else {
+        return maxAvailableForUser;
+      }
+    },
     getProblems: function() {
-      var days, maxAvailableForUser, maxAvailableInTotal, problems, quantity, reservationsToExclude;
+      var avail, days, effectiveAvailable, maxAvailableForUser, maxAvailableInTotal, problems, quantity, reservationsToExclude, softOverbooked;
       problems = [];
       if (this.model_id != null) {
         reservationsToExclude = this.subreservations != null ? this.subreservations : [this];
-        maxAvailableForUser = this.model().availability().withoutLines(reservationsToExclude).maxAvailableForGroups(this.start_date, this.end_date, this.user().groupIds);
+        avail = this.model().availability();
+        maxAvailableForUser = avail.withoutLines(reservationsToExclude).maxAvailableForGroups(this.start_date, this.end_date, this.user().groupIds);
+        softOverbooked = this._isSoftOverbooked(avail, reservationsToExclude);
         quantity = this.subreservations != null ? _.reduce(this.subreservations, (function(mem, l) {
           return mem + l.quantity;
         }), 0) : this.quantity;
@@ -2827,11 +2981,12 @@
           type: "overdue",
           message: (_jed("Overdue")) + " " + (_jed("since")) + " " + days + " " + (_jed(days, "day"))
         });
-      } else if ((maxAvailableForUser != null) && maxAvailableForUser < quantity) {
-        maxAvailableInTotal = this.model().availability().withoutLines(reservationsToExclude, true).maxAvailableInTotal(this.start_date, this.end_date);
+      } else if ((maxAvailableForUser != null) && (maxAvailableForUser < quantity || softOverbooked)) {
+        effectiveAvailable = softOverbooked ? maxAvailableForUser - quantity : maxAvailableForUser;
+        maxAvailableInTotal = avail.withoutLines(reservationsToExclude, true).maxAvailableInTotal(this.start_date, this.end_date);
         problems.push({
           type: "availability",
-          message: (_jed("Not available")) + " " + maxAvailableForUser + "(" + maxAvailableInTotal + ")/" + (this.model().availability().total_rentable)
+          message: (_jed("Not available")) + " " + effectiveAvailable + "(" + maxAvailableInTotal + ")/" + avail.total_rentable
         });
       }
       if (this.item()) {
@@ -13133,7 +13288,7 @@
 (function($) {$.views.templates("manage/views/availabilities/loaded", "<div class=\'emboss padding-inset-s\'>\n  <p class=\'paragraph-s\'>\n    <i class=\'fa fa-check margin-right-m\'><\/i>\n    {{jed \"Availability loaded\"/}}\n  <\/p>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/availabilities/loading", "<div class=\'emboss blue padding-inset-s\'>\n  <p class=\'paragraph-s\'>\n    <img class=\'margin-right-s max-width-micro\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n    <strong>{{jed \"Loading availability\"/}}<\/strong>\n  <\/p>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/booking_calendar/calendar_dialog", "<div class=\'modal fade ui-modal medium\' role=\'dialog\' tabindex=\'-1\'>\n  <div class=\'modal-header row\'>\n    <div class=\'col3of5\'>\n      <h2 class=\'headline-l\'>{{jed \"Edit reservation\"/}}<\/h2>\n      <h3 class=\'headline-m\'>\n        {{>user.firstname}}\n        {{>user.lastname}}\n      <\/h3>\n    <\/div>\n    <div class=\'col2of5 text-align-right\'>\n      <div class=\'modal-close\'>{{jed \"Cancel\"/}}<\/div>\n      <button class=\'button green\' disabled=\'disabled\' id=\'submit-booking-calendar\'>{{jed \"Save\"/}}<\/button>\n    <\/div>\n  <\/div>\n  <div id=\'booking-calendar-errors\'><\/div>\n  <div class=\'modal-body\'>\n    <form class=\'padding-inset-m\'>\n      <div class=\'hidden\' id=\'booking-calendar-controls\'>\n        <div class=\'col5of8 float-right\'>\n          <div class=\'row grey padding-bottom-xxs\'>\n            <div class=\'col1of2\'>\n              <div class=\'col1of2 padding-right-xs text-align-left\'>\n                <div class=\'row {{if ~startDateDisabled}} hidden{{/if}}\'>\n                  <span>{{jed \"Start date\"/}}<\/span>\n                  <a class=\'grey fa fa-eye position-absolute-right padding-right-xxs\' id=\'jump-to-start-date\'><\/a>\n                <\/div>\n              <\/div>\n              <div class=\'col1of2 padding-right-xs text-align-left\'>\n                <div class=\'row\'>\n                  <span>{{jed \"End date\"/}}<\/span>\n                  <a class=\'grey fa fa-eye position-absolute-right padding-right-xxs\' id=\'jump-to-end-date\'><\/a>\n                <\/div>\n              <\/div>\n            <\/div>\n            <div class=\'col1of2\'>\n              <div class=\'col2of8 text-align-left\'>{{jed \"Quantity\"/}}<\/div>\n              <div class=\'col6of8 padding-left-xs text-align-left\'>{{jed \"Availability\"/}}<\/div>\n            <\/div>\n          <\/div>\n          <div class=\'row\'>\n            <div class=\'col1of2\'>\n              <div class=\'col1of2 padding-right-xs\'>\n                <div class=\'row {{if ~startDateDisabled}} hidden{{/if}}\'>\n                  <input autocomplete=\'off\' id=\'booking-calendar-start-date\' type=\'text\'>\n                <\/div>\n              <\/div>\n              <div class=\'col1of2 padding-right-xs\'>\n                <input autocomplete=\'off\' id=\'booking-calendar-end-date\' type=\'text\'>\n              <\/div>\n            <\/div>\n            <div class=\'col1of2\'>\n              <div class=\'col2of8\'>\n                {{if ~quantityDisabled}}\n                <input autocomplete=\'off\' class=\'text-align-center\' disabled=\'disabled\' id=\'booking-calendar-quantity\' type=\'text\' value=\'1\'>\n                {{else}}\n                <input autocomplete=\'off\' class=\'text-align-center\' id=\'booking-calendar-quantity\' type=\'text\' value=\'1\'>\n                {{/if}}\n              <\/div>\n              <div class=\'col6of8 padding-left-xs\'>\n                <select class=\'width-full\' id=\'booking-calendar-partitions\'><\/select>\n              <\/div>\n            <\/div>\n          <\/div>\n        <\/div>\n      <\/div>\n      <div class=\'booking-calendar padding-top-xs\' id=\'booking-calendar\'><\/div>\n      <img class=\'loading margin-horziontal-auto margin-vertical-xl\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n    <\/form>\n    <div id=\'booking-calendar-lines\'>\n      <div class=\'list-of-lines separated-top\'><\/div>\n    <\/div>\n  <\/div>\n  <div class=\'modal-footer\'><\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/booking_calendar/line", "<div class=\'line row\'>\n  {{if model().availability}}\n  <div class=\'line-info{{if model().availability().withoutLines([#view.data]).maxAvailableForGroups(~start_date, ~end_date, ~groupIds) < (~quantity||quantity)}} red{{/if}}\'><\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if ~quantity}}\n      {{>~quantity}}\n      {{else subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if model().availability}}\n    <span class=\'grey-text\'>\n      /\n      {{if subreservations}}\n      {{>model().availability().withoutLines(subreservations).maxAvailableForGroups(~start_date, ~end_date, ~groupIds)}}\n      {{else}}\n      {{>model().availability().withoutLines([#view.data]).maxAvailableForGroups(~start_date, ~end_date, ~groupIds)}}\n      {{/if}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    <strong>{{>model().name()}}<\/strong>\n  <\/div>\n  <div class=\'col4of10 line-col\'>\n    {{if model().availability}}\n    {{for model().availability().withoutLines([#view.data]).unavailableRanges((~quantity||quantity), ~groupIds, ~start_date, ~end_date)}}\n    <strong class=\'darkred-text\'>{{date startDate/}}-{{date endDate/}}<\/strong>\n    {{/for}}\n    {{/if}}\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/booking_calendar/line", "<div class=\'line row\'>\n  {{if model().availability}}\n  <div class=\'line-info{{if model().availability().withoutLines([#view.data]).maxAvailableForGroups(~start_date, ~end_date, ~groupIds) < (~quantity||quantity)}} red{{/if}}\'><\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if ~quantity}}\n      {{>~quantity}}\n      {{else subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if model().availability}}\n    <span class=\'grey-text\'>\n      /\n      {{>effectiveAvailableForUser()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    <strong>{{>model().name()}}<\/strong>\n  <\/div>\n  <div class=\'col4of10 line-col\'>\n    {{if model().availability}}\n    {{for model().availability().withoutLines([#view.data]).unavailableRanges((~quantity||quantity), ~groupIds, ~start_date, ~end_date)}}\n    <strong class=\'darkred-text\'>{{date startDate/}}-{{date endDate/}}<\/strong>\n    {{/for}}\n    {{/if}}\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/booking_calendar/partitions", "<option data-value=\'[{{>user}}]\'>{{jed \"Borrower\"/}}<\/option>\n{{if userGroups.length}}\n<optgroup label=\'{{jed \'Entitlement-Groups of this customer\'/}}\'>\n  {{for userGroups}}\n  <option data-value=\'[{{>id}}]\'>{{>name}}<\/option>\n  {{/for}}\n<\/optgroup>\n{{/if}}\n{{if otherGroups.length}}\n<optgroup label=\'{{jed \'Other entitlement-groups\'/}}\'>\n  {{for otherGroups}}\n  <option data-value=\'[{{>id}}]\'>{{>name}}<\/option>\n  {{/for}}\n<\/optgroup>\n{{/if}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/categories/filter_list_current", "<a class=\'emboss links black row focus-hover-thin font-size-m padding-horizontal-s padding-vertical-xs round-border-on-hover\' data-id=\'{{>id}}\' data-type=\'category-current\'>\n  <i class=\'arrow left\'><\/i>\n  {{>name}}\n<\/a>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/categories/filter_list_entry", "<a class=\'links black row focus-hover-thin font-size-m padding-horizontal-s padding-vertical-xs round-border-on-hover\' data-id=\'{{>id}}\' data-type=\'category-filter\'>\n  {{>name}}\n<\/a>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
@@ -13177,7 +13332,7 @@
 (function($) {$.views.templates("manage/views/items/fields/writeable/autocomplete", "<label class=\'row\'>\n  {{if ~field.extensible}}\n  <input data-type=\'extended-value\' name=\'{{>~field.getExtendedKeyFormName()}}\' type=\'hidden\' value=\'{{>~field.getValue(~itemData, ~field.extended_key, true)}}\'>\n  {{/if}}\n  {{if ~field.getValue(~itemData, ~field.attribute, true)}}\n  <input name=\'{{>~field.getFormName()}}\' type=\'hidden\' value=\'{{>~field.getValue(~itemData, ~field.attribute, true)}}\'>\n  <input autocomplete=\'off\' class=\'has-addon width-full\' data-autocomplete_blur_on_select=\'true\' data-autocomplete_data=\'{{stringify ~field.values/}}\' data-autocomplete_display_attribute=\'label\' data-autocomplete_element_tmpl=\'views/autocomplete/element\' data-autocomplete_extended_key_target=\'{{>~field.getExtendedKeyFormName()}}\' data-autocomplete_extensible=\'{{>~field.extensible}}\' data-autocomplete_search_on_focus=\'true\' data-autocomplete_value_target=\'{{>~field.getFormName()}}\' data-type=\'autocomplete\' placeholder=\'{{>~field.getLabel()}}\' title=\'{{>~field.getLabel()}}\' type=\'text\' value=\'{{>~field.getValueLabel(~field.values, ~field.getValue(~itemData, ~field.attribute, true))}}\'>\n  {{else}}\n  <input name=\'{{>~field.getFormName()}}\' type=\'hidden\'>\n  <input autocomplete=\'off\' class=\'has-addon width-full\' data-autocomplete_blur_on_select=\'true\' data-autocomplete_data=\'{{stringify ~field.values/}}\' data-autocomplete_display_attribute=\'label\' data-autocomplete_element_tmpl=\'views/autocomplete/element\' data-autocomplete_extended_key_target=\'{{>~field.getExtendedKeyFormName()}}\' data-autocomplete_extensible=\'{{>~field.extensible}}\' data-autocomplete_search_on_focus=\'true\' data-autocomplete_value_target=\'{{>~field.getFormName()}}\' data-type=\'autocomplete\' placeholder=\'{{>~field.getLabel()}}\' title=\'{{>~field.getLabel()}}\' type=\'text\'>\n  {{/if}}\n  <div class=\'addon transparent\'>\n    <i class=\'arrow down\'><\/i>\n  <\/div>\n<\/label>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/items/fields/writeable/checkbox", "<div class=\'padding-inset-xxs\'>\n  {{:~setvar(\"values\", ~field.getValue(~itemData, ~field.attribute, true))}}\n  {{for ~field.values}}\n  <label class=\'padding-inset-xxs\'>\n    {{if ~getvar(\"values\") != null && ~getvar(\"values\").indexOf(value) >= 0}}\n    <input checked name=\'{{>~field.getFormName(~field.attribute, ~field.form_name, \'asArray\')}}\' type=\'checkbox\' value=\'{{>value}}\'>\n    {{else}}\n    <input name=\'{{>~field.getFormName(~field.attribute, ~field.form_name, \'asArray\')}}\' type=\'checkbox\' value=\'{{>value}}\'>\n    {{/if}}\n    <span class=\'font-size-m\'>{{jed label/}}<\/span>\n  <\/label>\n  {{/for}}\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/items/fields/writeable/composite", "<div class=\'row\'>\n  <div class=\'col7of8 padding-vertical-xs\' id=\'remaining-total-quantity\'><\/div>\n  <div class=\'col1of8\'>\n    <button class=\'button inset float-right\' id=\'add-inline-entry\'>\n      <i class=\'fa fa-plus\'><\/i>\n    <\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/items/fields/writeable/composite_partials/license_quantity_allocation", "<div class=\'row line font-size-xs focus-hover-thin\' data-type=\'inline-entry\'>\n  <div class=\'line-col col1of10 text-align-center\'>Anzahl:<\/div>\n  <div class=\'line-col col2of10\'>\n    <input class=\'width-full small text-align-center\' data-quantity-allocation=\'true\' name=\'{{>field.getFormName()}}[][quantity]\' type=\'text\' value=\'{{if allocation}}{{>allocation.quantity}}{{/if}}\'>\n  <\/div>\n  <div class=\'line-col col1of10 text-align-center\'>Ort:<\/div>\n  <div class=\'line-col col5of10\'>\n    <input class=\'width-full small text-align-center\' data-room-allocation=\'true\' name=\'{{>field.getFormName()}}[][room]\' type=\'text\' value=\'{{if allocation}}{{>allocation.room}}{{/if}}\'>\n  <\/div>\n  <div class=\'line-col col1of10\'>\n    <button class=\'button inset small\' data-remove>Entfernen<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/items/fields/writeable/composite_partials/license_quantity_allocation", "<div class=\'row line font-size-xs focus-hover-thin\' data-type=\'inline-entry\'>\n  <div class=\'line-col col1of10 text-align-center\'>Quantity:<\/div>\n  <div class=\'line-col col2of10\'>\n    <input class=\'width-full small text-align-center\' data-quantity-allocation=\'true\' name=\'{{>field.getFormName()}}[][quantity]\' type=\'text\' value=\'{{if allocation}}{{>allocation.quantity}}{{/if}}\'>\n  <\/div>\n  <div class=\'line-col col1of10 text-align-center\'>Location:<\/div>\n  <div class=\'line-col col5of10\'>\n    <input class=\'width-full small text-align-center\' data-room-allocation=\'true\' name=\'{{>field.getFormName()}}[][room]\' type=\'text\' value=\'{{if allocation}}{{>allocation.room}}{{/if}}\'>\n  <\/div>\n  <div class=\'line-col col1of10\'>\n    <button class=\'button inset small\' data-remove>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/items/fields/writeable/date", "<input name=\'{{>~field.getFormName()}}\' type=\'hidden\' value=\'{{>~field.getValue(~itemData, ~field.attribute, true)}}\'>\n{{if ~field.getValue(~itemData, ~field.attribute, true)}}\n<input autocomplete=\'off\' class=\'width-full\' data-type=\'datepicker\' type=\'text\' value=\'{{date ~field.getValue(~itemData, ~field.attribute, true)/}}\'>\n{{else}}\n<input autocomplete=\'off\' class=\'width-full\' data-type=\'datepicker\' type=\'text\'>\n{{/if}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/items/fields/writeable/partials/attachment_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <div class=\'line-col text-align-center\' title=\'{{jed \'File has to be uploaded on save\'/}}\'>\n    <i class=\'fa fa-cloud-upload\'><\/i>\n  <\/div>\n  <div class=\'line-col col7of10 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>\n      {{jed \"Remove\"/}}\n    <\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/items/fields/writeable/partials/uploaded_attachment", "<div class=\'row line font-size-xs focus-hover-thin\' data-type=\'inline-entry\'>\n  <input name=\'item[attachments_attributes][{{>id}}][id]\' type=\'hidden\' value=\'{{>id}}\'>\n  <input name=\'item[attachments_attributes][{{>id}}][_destroy]\' type=\'hidden\'>\n  <div class=\'line-col col7of10 text-align-left\'>\n    <a class=\'blue\' href=\'{{>public_filename}}\' target=\'_blank\'>\n      {{>filename}}\n    <\/a>\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>\n      {{jed \"Remove\"/}}\n    <\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
@@ -13195,16 +13350,16 @@
 (function($) {$.views.templates("manage/views/lists/no_results", "<div class=\'height-s\'><\/div>\n<h3 class=\'headline-s light padding-inset-xl text-align-center\'>\n  {{jed \"No entries found\"/}}\n<\/h3>\n<div class=\'height-s\'><\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/lists/page", "<span class=\'page\' data-page=\'{{> ~page}}\'>\n  {{for ~entries}}\n  <div class=\'line\'><\/div>\n  {{/for}}\n<\/span>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/explorative_add_line", "<div class=\'line row focus-hover-thin{{if availability().maxAvailableForGroups(~startDate, ~endDate, ~groupIds) <= 0}} grayed-out{{/if}}\' data-id=\'{{>id}}\' data-type=\'model\'>\n  <div class=\'col1of10 line-col no-padding text-align-center\'>\n    <div class=\'table\'>\n      <div class=\'table-row\'>\n        <div class=\'table-cell vertical-align-middle\'>\n          <img class=\'max-width-xxs max-height-xxs\' src=\'/models/{{>id}}/image_thumb\'>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    {{if is_package}}\n    <div class=\'grey-text\'>{{jed \'Package\'/}}<\/div>\n    {{/if}}\n    <strong>\n      {{> name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col2of10 line-col no-padding text-align-center\'>\n    <span title=\'{{jed \'Available for borrower\'/}}\'>{{>availability().maxAvailableForGroups(~startDate, ~endDate, ~groupIds)}}<\/span>\n    <span title=\'{{jed \'Available in total\'/}}\'>({{>availability().maxAvailableInTotal(~startDate, ~endDate)}})<\/span>\n    /\n    <span title=\'{{jed \'Borrowable items\'/}}\'>{{>availability().total_rentable}}<\/span>\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-right-s text-align-center\'>\n    <a class=\'button white\' data-type=\'select\'>\n      {{jed \"Select\"/}}\n    <\/a>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/form/accessory_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'hidden\' value=\'0,{{current_inventory_pool_id/}}\'>\n  <label class=\'line-col col1of10 text-align-center no-padding\'>\n    <input autocomplete=\'off\' checked name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'checkbox\' value=\'1,{{current_inventory_pool_id/}}\'>\n  <\/label>\n  <div class=\'line-col col6of10 text-align-left\'>\n    {{>name}}\n    <input name=\'model[accessories_attributes][{{>~uid}}][name]\' type=\'hidden\' value=\'{{>name}}\'>\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove>Entfernen<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/form/accessory_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'hidden\' value=\'0,{{current_inventory_pool_id/}}\'>\n  <label class=\'line-col col1of10 text-align-center no-padding\'>\n    <input autocomplete=\'off\' checked name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'checkbox\' value=\'1,{{current_inventory_pool_id/}}\'>\n  <\/label>\n  <div class=\'line-col col6of10 text-align-left\'>\n    {{>name}}\n    <input name=\'model[accessories_attributes][{{>~uid}}][name]\' type=\'hidden\' value=\'{{>name}}\'>\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/form/allocation_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[partitions_attributes][{{>~uid}}][group_id]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col3of5 text-align-left\' data-name=\'{{>name}}\'>\n    <a class=\'blue\' href=\'{{>url()}}/edit\'>\n      {{>name}}\n    <\/a>\n  <\/div>\n  <div class=\'line-col col1of5 text-align-center\'>\n    <input autocomplete=\'off\' class=\'width-xs small text-align-center\' name=\'model[partitions_attributes][{{>~uid}}][quantity]\' type=\'text\' value=\'1\'>\n  <\/div>\n  <div class=\'line-col col1of5 text-align-right\'>\n    <button class=\'button small inset\' data-remove>{{jed \"Remove\"/}}<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/form/attachment_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <div class=\'line-col text-align-center\' title=\'{{jed \'File has to be uploaded on save\'/}}\'>\n    <i class=\'fa fa-cloud-upload\'><\/i>\n  <\/div>\n  <div class=\'line-col col7of10 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>Entfernen<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/form/category_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input data-disable-on-remove name=\'model[category_ids][]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col2of3 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col1of3 text-align-right\'>\n    <button class=\'button small inset\' data-remove>Entfernen<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/form/compatible_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input data-disable-on-remove name=\'model[compatible_ids][]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col2of3 text-align-left\'>\n    {{>name()}}\n  <\/div>\n  <div class=\'line-col col1of3 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>Entfernen<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/form/package_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  {{for data}}\n  <input name=\'model[packages][{{>~uid}}]{{>name}}\' type=\'hidden\' value=\'{{>value}}\'>\n  {{/for}}\n  {{for children}}\n  <input name=\'model[packages][{{>~uid}}][children][id][]\' type=\'hidden\' value=\'{{>id}}\'>\n  {{/for}}\n  <div class=\'line-col col1of4 text-align-left\'>\n    {{jed \'Prepackaged\'/}}\n  <\/div>\n  <div class=\'line-col col1of4 text-align-left\'>\n    <span class=\'grey-text\'>{{jed \'not yet saved\'/}}<\/span>\n  <\/div>\n  <div class=\'line-col col1of2 text-align-right\'>\n    <button class=\'button small inset\' data-remove title=\'Entfernen\' type=\'button\'>\n      <i class=\'fa fa-trash\'><\/i>\n    <\/button>\n    <button class=\'button small inset\' data-edit-package type=\'button\'>Editieren<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/form/attachment_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <div class=\'line-col text-align-center\' title=\'{{jed \'File has to be uploaded on save\'/}}\'>\n    <i class=\'fa fa-cloud-upload\'><\/i>\n  <\/div>\n  <div class=\'line-col col7of10 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/form/category_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input data-disable-on-remove name=\'model[category_ids][]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col2of3 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col1of3 text-align-right\'>\n    <button class=\'button small inset\' data-remove>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/form/compatible_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input data-disable-on-remove name=\'model[compatible_ids][]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col2of3 text-align-left\'>\n    {{>name()}}\n  <\/div>\n  <div class=\'line-col col1of3 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/form/package_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  {{for data}}\n  <input name=\'model[packages][{{>~uid}}]{{>name}}\' type=\'hidden\' value=\'{{>value}}\'>\n  {{/for}}\n  {{for children}}\n  <input name=\'model[packages][{{>~uid}}][children][id][]\' type=\'hidden\' value=\'{{>id}}\'>\n  {{/for}}\n  <div class=\'line-col col1of4 text-align-left\'>\n    {{jed \'Prepackaged\'/}}\n  <\/div>\n  <div class=\'line-col col1of4 text-align-left\'>\n    <span class=\'grey-text\'>{{jed \'not yet saved\'/}}<\/span>\n  <\/div>\n  <div class=\'line-col col1of2 text-align-right\'>\n    <button class=\'button small inset\' data-remove title=\'Remove\' type=\'button\'>\n      <i class=\'fa fa-trash\'><\/i>\n    <\/button>\n    <button class=\'button small inset\' data-edit-package type=\'button\'>Edit<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/form/package_inline_entry/updated_package_form_data", "{{for data}}\n<input name=\'model[packages][{{>~uid}}]{{>name}}\' type=\'hidden\' value=\'{{>value}}\'>\n{{/for}}\n{{for children}}\n<input name=\'model[packages][{{>~uid}}][children][id][]\' type=\'hidden\' value=\'{{>id}}\'>\n{{/for}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/form/property_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-type=\'inline-entry\' date-new>\n  <div class=\'line-col col1of10 text-align-left no-padding text-align-center cursor-move\' data-type=\'sort-handle\'>\n    <i class=\'fa fa-resize-vertical\'><\/i>\n  <\/div>\n  <div class=\'line-col col4of10 no-padding\'>\n    <input class=\'small width-full\' name=\'model[properties_attributes][][key]\' type=\'text\'>\n  <\/div>\n  <div class=\'line-col col4of10\'>\n    <input class=\'small width-full\' name=\'model[properties_attributes][][value]\' type=\'text\'>\n  <\/div>\n  <div class=\'line-col col1of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove title=\'Entfernen\'>\n      <i class=\'fa fa-trash\'><\/i>\n    <\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/form/property_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-type=\'inline-entry\' date-new>\n  <div class=\'line-col col1of10 text-align-left no-padding text-align-center cursor-move\' data-type=\'sort-handle\'>\n    <i class=\'fa fa-resize-vertical\'><\/i>\n  <\/div>\n  <div class=\'line-col col4of10 no-padding\'>\n    <input class=\'small width-full\' name=\'model[properties_attributes][][key]\' type=\'text\'>\n  <\/div>\n  <div class=\'line-col col4of10\'>\n    <input class=\'small width-full\' name=\'model[properties_attributes][][value]\' type=\'text\'>\n  <\/div>\n  <div class=\'line-col col1of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove title=\'Remove\'>\n      <i class=\'fa fa-trash\'><\/i>\n    <\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/line", "<div class=\'line row focus-hover-thin\' data-id=\'{{>id}}\' data-is_package=\'{{>is_package}}\' data-type=\'model\'>\n  <div class=\'col1of10 line-col text-align-center no-padding\'>\n    <div class=\'table\'>\n      <div class=\'table-row\'>\n        <div class=\'table-cell vertical-align-middle\'>\n          <img class=\'max-width-xxs max-height-xxs\' src=\'/models/{{>id}}/image_thumb\'>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    {{if is_package}}\n    <div class=\'grey-text\'>{{jed \'Package\'/}}<\/div>\n    {{/if}}\n    <strong class=\'test-fix-timeline\'>\n      {{> name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col3of10 line-col text-align-center\'>\n    <span title=\'{{jed \'in stock\'/}}\'>{{> availability().in_stock}}<\/span>\n    /\n    <span title=\'{{jed \'rentable\'/}}\'>{{> availability().total_rentable}}<\/span>\n  <\/div>\n  <div class=\'col2of8 line-col line-actions padding-right-xs\'>\n    <div class=\'multibutton width-full text-align-right\'>\n      <a class=\'button white text-ellipsis col4of5 negative-margin-right-xxs\' href=\'{{>url(\'edit\')}}\' title=\'{{jed \'Edit Model\'/}}\'>\n        {{jed \"Edit Model\"/}}\n      <\/a>\n      <div class=\'dropdown-holder inline-block col1of5\'>\n        <div class=\'button white dropdown-toggle width-full no-padding text-align-center\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/models/packages/item", "<div class=\'row emboss padding-bottom-xxs margin-bottom-xxs\' data-id=\'{{>id}}\' data-new data-type=\'inline-entry\'>\n  <div class=\'row padding-inset-xxs\'>\n    <div class=\'col1of4 padding-left-s padding-top-xs\'>\n      <strong class=\'font-size-m inline-block\'>\n        {{>inventory_code}}\n      <\/strong>\n    <\/div>\n    <div class=\'col2of4 padding-top-xs\'>\n      {{>model().name()}}\n    <\/div>\n    <div class=\'col1of4 text-align-right\'>\n      <button class=\'button small inset\' data-remove type=\'button\'>Entfernen<\/button>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/models/packages/item", "<div class=\'row emboss padding-bottom-xxs margin-bottom-xxs\' data-id=\'{{>id}}\' data-new data-type=\'inline-entry\'>\n  <div class=\'row padding-inset-xxs\'>\n    <div class=\'col1of4 padding-left-s padding-top-xs\'>\n      <strong class=\'font-size-m inline-block\'>\n        {{>inventory_code}}\n      <\/strong>\n    <\/div>\n    <div class=\'col2of4 padding-top-xs\'>\n      {{>model().name()}}\n    <\/div>\n    <div class=\'col1of4 text-align-right\'>\n      <button class=\'button small inset\' data-remove type=\'button\'>Remove<\/button>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/packages/item_autocomplete_element", "<li class=\'separated-bottom exclude-last-child\'>\n  <a>\n    <div class=\'row text-ellipsis\'>\n      <div class=\'col1of3\'>\n        <strong>{{>inventory_code}}<\/strong>\n      <\/div>\n      <div class=\'col2of3\'>\n        {{>model().name()}}\n      <\/div>\n    <\/div>\n  <\/a>\n<\/li>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/packages/missing_data_error", "<div class=\'padding-horizontal-m padding-bottom-m\'>\n  <div class=\'row emboss red text-align-center font-size-m padding-inset-s\'>\n    <strong>{{jed \'Please provide all required fields\'/}}<\/strong>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/packages/no_items_error", "<div class=\'padding-horizontal-m padding-bottom-m\'>\n  <div class=\'row emboss red text-align-center font-size-m padding-inset-s\'>\n    <strong>{{jed \'You can not create a package without any item\'/}}<\/strong>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
@@ -13241,7 +13396,7 @@
 (function($) {$.views.templates("manage/views/reservations/hand_over_line/item_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'item_line\'>\n  <div class=\'{{if ~renderAvailability && anyProblems()}}line-info red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col2of10 line-col text-align-center\'>\n    <div class=\'row\'>\n      {{if item()}}\n      {{partial \'manage/views/reservations/hand_over_line/assigned_item\' #view.data/}}\n      {{else}}\n      {{partial \'manage/views/reservations/hand_over_line/unassigned_item\' #view.data/}}\n      {{/if}}\n    <\/div>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n    {{if item() && item().children().all().length}}\n    <ul style=\'font-size: 0.8em; list-style-type: disc; margin-left: 1.5em;\'>\n      {{for item().children().all()}}\n      <li>\n        {{>to_s}}\n      <\/li>\n      {{/for}}\n    <\/ul>\n    {{/if}}\n    {{if model().accessory_names && model().accessory_names.length}}\n    <br>\n    <span>{{>model().accessory_names}}<\/span>\n    {{/if}}\n    {{if model().hand_over_note}}\n    <br>\n    <span class=\'grey-text\'>{{>model().hand_over_note}}<\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if order()}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>order().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n    {{else}}\n    {{if line_purpose}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>line_purpose}}\'>\n      <i class=\'fa fa-comment fa-flip-horizontal lightgrey\'><\/i>\n    <\/div>\n    {{/if}}\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-line>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/hand_over_line/option_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'option_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col\'>\n    <input class=\'small width-full text-align-center\' data-line-quantity type=\'text\' value=\'{{>quantity}}\'>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span class=\'grey-text\'>{{>option().inventory_code}}<\/span>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\'>{{>option().name()}}<\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if order()}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>order().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n    {{else}}\n    {{if line_purpose}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>line_purpose}}\'>\n      <i class=\'fa fa-comment fa-flip-horizontal lightgrey\'><\/i>\n    <\/div>\n    {{/if}}\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \'Change entry\'/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-line>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/hand_over_line/unassigned_item", "<form data-assign-item-form>\n  <input autocomplete=\'off\' class=\'small width-full has-addon text-align-center\' data-assign-item id=\'assigned-item-{{>id}}\' type=\'text\'>\n  <label class=\'addon small transparent padding-right-s\' for=\'assigned-item-{{>id}}\'>\n    <div class=\'arrow down\'><\/div>\n  <\/label>\n<\/form>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/order_line", "<div class=\'order-line line light row focus-hover-thin\' data-ids=\'{{JSON ids/}}\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if ~renderAvailability}}\n    <span class=\'grey-text\'>\n      /\n      {{if subreservations}}\n      {{>model().availability().withoutLines(subreservations).maxAvailableForGroups(start_date, end_date, user().groupIds)}}\n      {{else}}\n      {{>model().availability().withoutLines([#view.data]).maxAvailableForGroups(start_date, end_date, user().groupIds)}}\n      {{/if}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col6of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-left padding-horizontal-m\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON ids/}}\'>\n        {{jed \"Change entry\"/}}\n      <\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model_id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-lines data-ids=\'{{JSON ids/}}\'>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/order_line", "<div class=\'order-line line light row focus-hover-thin\' data-ids=\'{{JSON ids/}}\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if ~renderAvailability}}\n    <span class=\'grey-text\'>\n      /\n      {{>effectiveAvailableForUser()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col6of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-left padding-horizontal-m\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON ids/}}\'>\n        {{jed \"Change entry\"/}}\n      <\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model_id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-lines data-ids=\'{{JSON ids/}}\'>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/problems_tooltip", "<div class=\'width-m\'>\n  {{for content}}\n  <div class=\'padding-vertical-xxs\'>\n    <div class=\'padding-inset-s emboss\'>\n      <strong class=\'font-size-m\'>{{>message}}<\/strong>\n    <\/div>\n  <\/div>\n  {{/for}}\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/removing", "<div class=\'emboss blue padding-inset-s\'>\n  <p class=\'paragraph-s\'>\n    <img class=\'margin-right-s max-width-micro\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n    <strong>\n      {{jed \"Removing items\"/}}\n    <\/strong>\n  <\/p>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/take_back_line", "{{if model_id}}\n{{partial \'manage/views/reservations/take_back_line/item_line\' #view.data #view.ctx/}}\n{{else option_id}}\n{{partial \'manage/views/reservations/take_back_line/option_line\' #view.data #view.ctx/}}\n{{/if}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
@@ -13269,7 +13424,7 @@
 (function($) {$.views.templates("manage/views/take_backs/reminder_send", "<strong>{{jed \"Reminder sent\"/}}<\/strong>\n<i class=\'fa fa-envelope\'><\/i>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/templates/models/autocomplete_element", "<li class=\'separated-bottom exclude-last-child\'>\n  <a>\n    <div class=\'row\'>\n      {{>name()}}\n    <\/div>\n  <\/a>\n<\/li>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/templates/models/model_allocation_entry", "<div class=\'row line font-size-xs\' data-new data-type=\'inline-entry\'>\n  <input name=\'template[model_links_attributes][][model_id]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col2of6 no-padding\'>\n    <div class=\'line-col col1of2\' data-quantities>\n      <input autocomplete=\'off\' class=\'width-full small text-align-center\' max=\'{{>availability().total_rentable}}\' min=\'1\' name=\'template[model_links_attributes][][quantity]\' type=\'text\' value=\'1\'>\n    <\/div>\n    <div class=\'line-col col1of2 padding-left-xs text-align-left\' data-quantities>\n      / {{>availability().total_rentable}}\n    <\/div>\n  <\/div>\n  <div class=\'line-col col3of6 text-align-left\' data-model-name>\n    {{>name()}}\n  <\/div>\n  <div class=\'line-col col1of6 text-align-right\'>\n    <button class=\'button inset small\' data-remove>{{jed \"Remove\"/}}<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/templates/upload/image_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <div class=\'line-col text-align-center\' title=\'{{jed \'File has to be uploaded on save\'/}}\'>\n    <i class=\'fa fa-cloud-upload\'><\/i>\n  <\/div>\n  <div class=\'line-col col1of10 text-align-center\'>\n    <img class=\'max-height-xxs max-width-xxs\'>\n  <\/div>\n  <div class=\'line-col col6of10 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>Entfernen<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/templates/upload/image_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <div class=\'line-col text-align-center\' title=\'{{jed \'File has to be uploaded on save\'/}}\'>\n    <i class=\'fa fa-cloud-upload\'><\/i>\n  <\/div>\n  <div class=\'line-col col1of10 text-align-center\'>\n    <img class=\'max-height-xxs max-width-xxs\'>\n  <\/div>\n  <div class=\'line-col col6of10 text-align-left\'>\n    {{>name}}\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove type=\'button\'>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/templates/upload/upload_errors_dialog", "<div class=\'modal medium hide fade ui-modal padding-inset-m padding-horizontal-l\' role=\'dialog\' tabindex=\'-1\'>\n  <div class=\'row padding-vertical-m\'>\n    <div class=\'col2of3\'>\n      <h3 class=\'headline-l\'>{{jed \"Upload problems\"/}}<\/h3>\n      <h3 class=\'headline-s light\'>\n        {{>headlineMessage}}\n      <\/h3>\n    <\/div>\n    <div class=\'col1of3\'>\n      <div class=\'float-right\'>\n        <a class=\'button white\' href=\'{{>url}}\'>\n          {{>buttonLabel}}\n        <\/a>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'modal-body row margin-top-m\'>\n    <div class=\'emboss error padding-inset-s\'>\n      <p class=\'paragraph-s\'>{{>errors}}<\/p>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/templates/upload/upload_image_type_errors_dialog", "<div class=\'modal medium hide fade ui-modal padding-inset-m padding-horizontal-l\' role=\'dialog\' tabindex=\'-1\'>\n  <div class=\'row padding-vertical-m\'>\n    <div class=\'col2of3\'>\n      <h3 class=\'headline-l\' style=\'color: #f00;\'>{{jed \"Upload problems\"/}}<\/h3>\n      <h3 class=\'headline-s light\' style=\'color: #f00;\'>\n        {{>headlineMessage}}\n      <\/h3>\n    <\/div>\n    <div class=\'col1of3\'>\n      <div class=\'float-right\'>\n        <a class=\'button white\' href=\'{{>url}}\'>\n          {{>buttonLabel}}\n        <\/a>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/templates/users/autocomplete_element", "<li class=\'separated-bottom exclude-last-child\'>\n  <a>\n    <div class=\'row\'>\n      {{>name()}}\n    <\/div>\n  <\/a>\n<\/li>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
