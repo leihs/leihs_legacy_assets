@@ -3,16 +3,16 @@ if (window.i18n == undefined) window.i18n = {};
 (function() {
 
   i18n.date = {
-    L: "DD/MM/YYYY",
-    XL: "dddd DD/MM/YYYY",
-    XXL: "DD/MM/YYYY LT",
-    XXXL: "dddd DD/MM/YYYY LT",
-    XS: 'DD/MM/YY'
+    L: "MM/DD/YYYY",
+    XL: "dddd MM/DD/YYYY",
+    XXL: "MM/DD/YYYY LT",
+    XXXL: "dddd MM/DD/YYYY LT",
+    XS: 'MM/DD/YY'
   };
 
   i18n.datepicker = {
-    L: "dd/mm/yy",
-    XS: "dd/mm/y"
+    L: "mm/dd/yy",
+    XS: "mm/dd/y"
   };
 
   i18n.months = {
@@ -26,7 +26,7 @@ if (window.i18n == undefined) window.i18n = {};
     trunc: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
   };
 
-  i18n.time = "H:mm";
+  i18n.time = "hh:mm";
 
   i18n.meridiem = {
     AM: 'AM',
@@ -45,7 +45,7 @@ if (window.i18n == undefined) window.i18n = {};
   };
 
   i18n.relative = {
-    future: "in %s",
+    future: "at %s",
     past: "%s ago",
     s: "a few seconds",
     m: "one minute",
@@ -73,8 +73,8 @@ window.i18n.locale_data = {
          "Project-Id-Version": " version 0.0.1",
          "Report-Msgid-Bugs-To": " ",
          "POT-Creation-Date": " 2012-10-22 12:39+0200",
-         "PO-Revision-Date": " 2017-08-14 17:17+0200",
-         "Language": " en_GB",
+         "PO-Revision-Date": " 2017-08-14 17:18+0200",
+         "Language": " en_US",
          "MIME-Version": " 1.0",
          "Content-Type": " text/plain; charset=UTF-8",
          "Content-Transfer-Encoding": " 8bit",
@@ -133,6 +133,18 @@ window.i18n.locale_data = {
          ""
       ],
       "** This is an automatically generated response **": [
+         null,
+         ""
+      ],
+      "Users who don't bring back the items on the required date are suspended from next day on.": [
+         null,
+         ""
+      ],
+      "Automatic suspension": [
+         null,
+         ""
+      ],
+      "Automatic suspension reason": [
          null,
          ""
       ],
@@ -340,6 +352,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "available quantity": [
+         null,
+         ""
+      ],
       "Back": [
          null,
          ""
@@ -521,7 +537,11 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "Currently has things to return": [
+      "Currently has items to return": [
+         null,
+         ""
+      ],
+      "Currently has open orders": [
          null,
          ""
       ],
@@ -621,7 +641,15 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Edit Software": [
+         null,
+         ""
+      ],
       "Edit Item": [
+         null,
+         ""
+      ],
+      "Edit License": [
          null,
          ""
       ],
@@ -705,10 +733,6 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "has %s more...": [
-         null,
-         ""
-      ],
       "Finish this hand over": [
          null,
          ""
@@ -770,6 +794,10 @@ window.i18n.locale_data = {
          ""
       ],
       "Hand Overs": [
+         null,
+         ""
+      ],
+      "has %s more...": [
          null,
          ""
       ],
@@ -1067,10 +1095,6 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "List of Models": [
-         null,
-         ""
-      ],
       "Loading": [
          null,
          ""
@@ -1086,6 +1110,10 @@ window.i18n.locale_data = {
       "%s location": [
          "%s locations",
          "",
+         ""
+      ],
+      "Location not defined": [
+         null,
          ""
       ],
       "Logged in successfully": [
@@ -1349,10 +1377,6 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "Package error": [
-         null,
-         ""
-      ],
       "Package successfully destroyed": [
          null,
          ""
@@ -1461,6 +1485,14 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Quantity allocations": [
+         null,
+         ""
+      ],
+      "Total quantity": [
+         null,
+         ""
+      ],
       "Quantity: %d": [
          null,
          ""
@@ -1509,10 +1541,6 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "Reminder emails": [
-         null,
-         "Reminder email(s)"
-      ],
       "Removed %{q} %{m}": [
          null,
          ""
@@ -1522,6 +1550,10 @@ window.i18n.locale_data = {
          ""
       ],
       "Reservation": [
+         null,
+         ""
+      ],
+      "Contact person": [
          null,
          ""
       ],
@@ -1546,6 +1578,14 @@ window.i18n.locale_data = {
          ""
       ],
       "Retired": [
+         null,
+         ""
+      ],
+      "retired": [
+         null,
+         ""
+      ],
+      "not retired": [
          null,
          ""
       ],
@@ -1586,6 +1626,10 @@ window.i18n.locale_data = {
          ""
       ],
       "Copy Item": [
+         null,
+         ""
+      ],
+      "Copy License": [
          null,
          ""
       ],
@@ -1682,6 +1726,10 @@ window.i18n.locale_data = {
          ""
       ],
       "Start Date must be before End Date": [
+         null,
+         ""
+      ],
+      "End Date cannot be in the past": [
          null,
          ""
       ],
@@ -1833,7 +1881,7 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "The item cannot be retired because it's not returned yet.": [
+      "The item cannot be retired because it's not returned yet or has already been assigned to a contract line.": [
          null,
          ""
       ],
@@ -1929,6 +1977,18 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "This contract is not signable because the delegated user is either missing or not part of this delegation.": [
+         null,
+         ""
+      ],
+      "Delegated user is not member of the contract's delegation or is empty": [
+         null,
+         ""
+      ],
+      "Delegated user must be empty for contract's normal user": [
+         null,
+         ""
+      ],
       "Entitlement-Groups of this customer": [
          null,
          ""
@@ -2017,7 +2077,23 @@ window.i18n.locale_data = {
          null,
          "Move"
       ],
+      "borrowable": [
+         null,
+         ""
+      ],
+      "unborrowable": [
+         null,
+         ""
+      ],
       "Unborrowable": [
+         null,
+         ""
+      ],
+      "Borrowable Items": [
+         null,
+         ""
+      ],
+      "Unborrowable Items": [
          null,
          ""
       ],
@@ -2045,11 +2121,24 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Updated at": [
+         null,
+         ""
+      ],
       "Upload error.": [
          null,
          ""
       ],
       "User": [
+         "Users",
+         "",
+         ""
+      ],
+      "Delegation": [
+         null,
+         ""
+      ],
+      "Delegations": [
          null,
          ""
       ],
@@ -2209,7 +2298,7 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "You don't have permission": [
+      "You don't have permission to perform this action": [
          null,
          ""
       ],
@@ -2438,6 +2527,14 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "not available": [
+         null,
+         ""
+      ],
+      "%s not available": [
+         null,
+         ""
+      ],
       "not borrowable": [
          null,
          ""
@@ -2515,6 +2612,14 @@ window.i18n.locale_data = {
          ""
       ],
       "this is a package": [
+         null,
+         ""
+      ],
+      "Model is transportable": [
+         null,
+         ""
+      ],
+      "Software is transportable": [
          null,
          ""
       ],
@@ -2622,6 +2727,14 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "New inventory badge": [
+         null,
+         "New"
+      ],
+      "New Delegation": [
+         null,
+         ""
+      ],
       "New User": [
          null,
          ""
@@ -2702,6 +2815,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Image": [
+         null,
+         ""
+      ],
       "Images": [
          null,
          ""
@@ -2739,6 +2856,10 @@ window.i18n.locale_data = {
          ""
       ],
       "not used": [
+         null,
+         ""
+      ],
+      "used": [
          null,
          ""
       ],
@@ -2815,6 +2936,14 @@ window.i18n.locale_data = {
          ""
       ],
       "Borrow": [
+         null,
+         ""
+      ],
+      "Borrow section": [
+         null,
+         ""
+      ],
+      "Manage section": [
          null,
          ""
       ],
@@ -3056,6 +3185,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Specification of the contact person is required": [
+         null,
+         ""
+      ],
       "Change": [
          null,
          ""
@@ -3261,7 +3394,7 @@ window.i18n.locale_data = {
          null,
          ""
       ],
-      "Reminder send": [
+      "Reminder sent": [
          null,
          ""
       ],
@@ -3435,6 +3568,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Used Models": [
+         null,
+         ""
+      ],
       "Responsible inventory pool": [
          null,
          ""
@@ -3472,10 +3609,6 @@ window.i18n.locale_data = {
          ""
       ],
       "Upload problems": [
-         null,
-         ""
-      ],
-      "The model was saved, but there were problems uploading files": [
          null,
          ""
       ],
@@ -3619,27 +3752,152 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Statistics": [
+         null,
+         ""
+      ],
+      "Who borrowed the most things?": [
+         null,
+         ""
+      ],
+      "lends": [
+         null,
+         ""
+      ],
+      "Which inventory pool is busiest?": [
+         null,
+         ""
+      ],
+      "Who bought the most items?": [
+         null,
+         ""
+      ],
+      "Maintenance": [
+         null,
+         ""
+      ],
+      "New users will get customer access automatically.": [
+         null,
+         ""
+      ],
+      "Software": [
+         null,
+         ""
+      ],
+      "Software Information": [
+         null,
+         ""
+      ],
+      "Software License": [
+         null,
+         ""
+      ],
+      "License": [
+         "Licenses",
+         "",
+         ""
+      ],
+      "Activation Type": [
+         null,
+         ""
+      ],
+      "License Type": [
+         null,
+         ""
+      ],
+      "Create new software license": [
+         null,
+         ""
+      ],
+      "Create new software": [
+         null,
+         ""
+      ],
+      "Free": [
+         null,
+         ""
+      ],
+      "Single Workplace": [
+         null,
+         ""
+      ],
+      "Multiple Workplace": [
+         null,
+         ""
+      ],
+      "License Server": [
+         null,
+         ""
+      ],
+      "License Number": [
+         null,
+         ""
+      ],
+      "Site License": [
+         null,
+         ""
+      ],
+      "Concurrent": [
+         null,
+         ""
+      ],
+      "Operating System": [
+         null,
+         ""
+      ],
+      "Installation": [
+         null,
+         ""
+      ],
+      "Hints": [
+         null,
+         ""
+      ],
+      "Local": [
+         null,
+         ""
+      ],
+      "License expiration": [
+         null,
+         ""
+      ],
+      "Maintenance expiration": [
+         null,
+         ""
+      ],
+      "Maintenance contract": [
+         null,
+         ""
+      ],
+      "Procured by": [
+         null,
+         ""
+      ],
+      "Picking List": [
+         null,
+         ""
+      ],
+      "remaining": [
+         null,
+         ""
+      ],
+      "Category can have only one image.": [
+         null,
+         ""
+      ],
+      "Used on the start page in the borrow section": [
+         null,
+         ""
+      ],
+      "A package item must belong to a package model": [
+         null,
+         ""
+      ],
       "Status note": [
          null,
          ""
       ],
-      "Field": [
-         null,
-         ""
-      ],
       "Fields": [
-         null,
-         ""
-      ],
-      "Show all fields": [
-         null,
-         ""
-      ],
-      "Reset visibility of all fields on the item forms": [
-         null,
-         ""
-      ],
-      "Hide this field from all item forms": [
          null,
          ""
       ],
@@ -3656,14 +3914,6 @@ window.i18n.locale_data = {
          "All"
       ],
       "Refresh Page": [
-         null,
-         ""
-      ],
-      "is not a valid URL": [
-         null,
-         ""
-      ],
-      "is not a HTTP(S) URL": [
          null,
          ""
       ],
@@ -3705,7 +3955,7 @@ window.i18n.locale_data = {
       ],
       "legacy_manage_users_new_admin_section_notice": [
          null,
-         "Users and their access rights can also be managed in the new Admin section."
+         "Users and their roles can also be managed in the new Admin section."
       ],
       "legacy_manage_entitlement_group_new_admin_section_notice": [
          null,
@@ -3714,10 +3964,6 @@ window.i18n.locale_data = {
       "legacy_manage_group_new_admin_section_notice": [
          null,
          "The groups are managed in the new Admin section."
-      ],
-      "legacy_manage_inventory_pool_admin_section_notice": [
-         null,
-         "Except for the management of entitlement groups are all other functions in the Admin section."
       ],
       "create_multiple_items_inv_code_notice": [
          null,

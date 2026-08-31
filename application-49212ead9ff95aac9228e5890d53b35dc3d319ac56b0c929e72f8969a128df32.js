@@ -61922,6 +61922,8 @@ window.SerializeItem = {
   }
 
 };
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
+
 (function () {
   var React = window.React;
 
@@ -62070,7 +62072,14 @@ window.SerializeItem = {
           disabled: edit,
 
           checked: edit ? model.is_package : false
-        }), this.createFieldModel({
+        })].concat(_toConsumableArray(this.props.enable_alternative_pickup_locations ? [this.createFieldModel({
+          type: 'checkbox',
+          key: 'transportable',
+          label: this.props.type == 'software' ? 'Software is transportable' : 'Model is transportable',
+          mandatory: false,
+
+          checked: edit ? model.transportable : true
+        })] : []), [this.createFieldModel({
           type: 'text',
           key: 'version',
           label: 'Version',
@@ -62343,7 +62352,7 @@ window.SerializeItem = {
             };
           }) : []
 
-        })]
+        })])
       };
     },
 
@@ -62359,7 +62368,7 @@ window.SerializeItem = {
 
       if (this.props.type == 'software') {
 
-        return {
+        var softwareRequest = {
           // NOTE: Rails unfortunately automatically wraps the parameters {model: {...}} if you dont do it,
           // which is confusing, but we do it anyways here explicitly.
           model: {
@@ -62380,6 +62389,12 @@ window.SerializeItem = {
 
           }
         };
+
+        if (this.props.enable_alternative_pickup_locations) {
+          softwareRequest.model.transportable = this.fieldByKey('transportable').state.checked;
+        }
+
+        return softwareRequest;
       }
 
       var m = {
@@ -62467,6 +62482,10 @@ window.SerializeItem = {
 
       if (!this.isEdit()) {
         m.model.is_package = this.fieldByKey('is_package').state.checked;
+      }
+
+      if (this.props.enable_alternative_pickup_locations) {
+        m.model.transportable = this.fieldByKey('transportable').state.checked;
       }
 
       return m;
@@ -62754,10 +62773,18 @@ window.SerializeItem = {
     leftFields: function () {
 
       if (this.props.type == 'software') {
-        return ['product', 'version', 'manufacturer'];
+        var softwareFields = ['product', 'version', 'manufacturer'];
+        if (this.props.enable_alternative_pickup_locations) {
+          softwareFields.push('transportable');
+        }
+        return softwareFields;
       }
 
-      return ['product', 'is_package', 'version', 'manufacturer', 'description', 'technical_details', 'internal_description', 'hand_over_notes', 'allocations', 'categories'];
+      var fields = ['product', 'is_package', 'version', 'manufacturer', 'description', 'technical_details', 'internal_description', 'hand_over_notes'];
+      if (this.props.enable_alternative_pickup_locations) {
+        fields.push('transportable');
+      }
+      return fields.concat(['allocations', 'categories']);
     },
 
     rightFields: function () {
