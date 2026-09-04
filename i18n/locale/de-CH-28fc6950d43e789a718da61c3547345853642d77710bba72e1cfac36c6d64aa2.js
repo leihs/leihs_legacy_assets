@@ -1525,6 +1525,10 @@ window.i18n.locale_data = {
          null,
          "Anzahl-Zuteilungen"
       ],
+      "Total price (indicative value)": [
+         null,
+         "Gesamtpreis (Richtwert)"
+      ],
       "Total quantity": [
          null,
          "Gesamtanzahl"
@@ -2627,6 +2631,18 @@ window.i18n.locale_data = {
          null,
          "dies ist ein Paket"
       ],
+      "Model is transportable": [
+         null,
+         "Modell ist transportierbar"
+      ],
+      "Software is transportable": [
+         null,
+         "Software ist transportierbar"
+      ],
+      "Ordering at alternative pickup locations possible": [
+         null,
+         "Bestellung an alternative Abholorte möglich"
+      ],
       "to edit this item": [
          null,
          "diesen Gegenstand zu editieren"
@@ -2732,6 +2748,10 @@ window.i18n.locale_data = {
          "Inventar-Verwalter"
       ],
       "New": [
+         null,
+         "Neu"
+      ],
+      "New inventory badge": [
          null,
          "Neu"
       ],
