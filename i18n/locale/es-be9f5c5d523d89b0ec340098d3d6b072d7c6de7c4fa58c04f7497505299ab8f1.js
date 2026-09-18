@@ -343,6 +343,10 @@ window.i18n.locale_data = {
          null,
          "Modelo agregado correctamente como compatible"
       ],
+      "New inventory badge": [
+         null,
+         "New"
+      ],
       "New item created.": [
          null,
          "Nuevo elemento creado"
@@ -630,6 +634,10 @@ window.i18n.locale_data = {
       "Today": [
          null,
          "Hoy"
+      ],
+      "Total price (indicative value)": [
+         null,
+         "Precio total (valor indicativo)"
       ],
       "Too many users found": [
          null,
@@ -1014,6 +1022,14 @@ window.i18n.locale_data = {
       "The order has already been dealt with.": [
          null,
          "El pedido ya ha sido procesado."
+      ],
+      "Pickup location": [
+         null,
+         "Lugar de recogida"
+      ],
+      "Handed to courier": [
+         null,
+         "Entregado al mensajero"
       ]
    }
 }

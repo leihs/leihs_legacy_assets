@@ -2649,6 +2649,18 @@ window.i18n.locale_data = {
          null,
          "ceci est un paquet"
       ],
+      "Model is transportable": [
+         null,
+         "Le modèle est transportable"
+      ],
+      "Software is transportable": [
+         null,
+         "Le logiciel est transportable"
+      ],
+      "Ordering at alternative pickup locations possible": [
+         null,
+         "Commande possible vers des lieux de retrait alternatifs"
+      ],
       "to edit this item": [
          null,
          "pour modifier cet élément"
@@ -2756,6 +2768,10 @@ window.i18n.locale_data = {
       "New": [
          null,
          "Nouveau"
+      ],
+      "New inventory badge": [
+         null,
+         "New"
       ],
       "New Delegation": [
          null,
@@ -4583,6 +4599,14 @@ window.i18n.locale_data = {
       "The order has already been dealt with.": [
          null,
          "L'ordre a déjà été traité."
+      ],
+      "Pickup location": [
+         null,
+         "Lieu de retrait"
+      ],
+      "Handed to courier": [
+         null,
+         "Remis au coursier"
       ]
    }
 }

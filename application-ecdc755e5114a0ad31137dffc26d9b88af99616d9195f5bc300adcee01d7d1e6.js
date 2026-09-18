@@ -57728,7 +57728,7 @@ This script provides functionalities for the interactivity with the topbar searc
       return InventoryPool.__super__.constructor.apply(this, arguments);
     }
 
-    InventoryPool.configure("InventoryPool", "id", "name", "default_contract_note", "borrow_reservation_advance_days");
+    InventoryPool.configure("InventoryPool", "id", "name", "default_contract_note", "borrow_reservation_advance_days", "enable_alternative_pickup_locations", "default_pickup_location_name", "transfer_buffer_after_drop_off", "transfer_buffer_before_pick_up");
 
     InventoryPool.hasMany("availabilities", "App.Availability", "inventory_pool_id");
 
@@ -57923,7 +57923,7 @@ This script provides functionalities for the interactivity with the topbar searc
       return Model.__super__.constructor.apply(this, arguments);
     }
 
-    Model.configure("Model", "id", "product", "version", "type", "properties", "accessory_names");
+    Model.configure("Model", "id", "product", "version", "type", "properties", "accessory_names", "transportable");
 
     Model.hasOne("availability", "App.Availability", "model_id");
 
@@ -58184,7 +58184,7 @@ This script provides functionalities for the interactivity with the topbar searc
       return Reservation.__super__.constructor.apply(this, arguments);
     }
 
-    Reservation.configure("Reservation", "id", "inventory_pool_id", "user_id", "delegated_user_id", "status", "contract_id", "order_id", "model_id", "option_id", "purpose_id", "quantity", "start_date", "end_date", "item_id", "line_purpose");
+    Reservation.configure("Reservation", "id", "inventory_pool_id", "user_id", "delegated_user_id", "status", "contract_id", "order_id", "model_id", "option_id", "purpose_id", "quantity", "start_date", "end_date", "item_id", "line_purpose", "pickup_location_id", "pickup_location", "sent_to_pickup_location_at", "sent_to_pickup_location_by_user_id", "sent_back_to_main_location_at", "sent_back_to_main_location_by_user_id");
 
     Reservation.belongsTo("contract", "App.Contract", "contract_id");
 
@@ -61922,6 +61922,8 @@ window.SerializeItem = {
   }
 
 };
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
+
 (function () {
   var React = window.React;
 
@@ -61941,6 +61943,7 @@ window.SerializeItem = {
         label: label,
         mandatory: mandatory,
         disabled: disabled,
+        info: params.info,
         specific: params.specific
       };
 
@@ -62028,7 +62031,15 @@ window.SerializeItem = {
             },
 
             manufacturer: edit ? model.manufacturer || '' : ''
-          }), this.createFieldModel({
+          })].concat(_toConsumableArray(this.props.enable_alternative_pickup_locations ? [this.createFieldModel({
+            type: 'checkbox',
+            key: 'transportable',
+            label: 'Software is transportable',
+            info: 'Ordering at alternative pickup locations possible',
+            mandatory: false,
+
+            checked: edit ? model.transportable : true
+          })] : []), [this.createFieldModel({
             type: 'software_information',
             key: 'software_information',
             label: 'Software Information',
@@ -62049,7 +62060,7 @@ window.SerializeItem = {
                 type: 'existing'
               };
             }) : []
-          })]
+          })])
 
         };
       }
@@ -62070,7 +62081,15 @@ window.SerializeItem = {
           disabled: edit,
 
           checked: edit ? model.is_package : false
-        }), this.createFieldModel({
+        })].concat(_toConsumableArray(this.props.enable_alternative_pickup_locations ? [this.createFieldModel({
+          type: 'checkbox',
+          key: 'transportable',
+          label: this.props.type == 'software' ? 'Software is transportable' : 'Model is transportable',
+          info: 'Ordering at alternative pickup locations possible',
+          mandatory: false,
+
+          checked: edit ? model.transportable : true
+        })] : []), [this.createFieldModel({
           type: 'text',
           key: 'version',
           label: 'Version',
@@ -62343,7 +62362,7 @@ window.SerializeItem = {
             };
           }) : []
 
-        })]
+        })])
       };
     },
 
@@ -62359,7 +62378,7 @@ window.SerializeItem = {
 
       if (this.props.type == 'software') {
 
-        return {
+        var softwareRequest = {
           // NOTE: Rails unfortunately automatically wraps the parameters {model: {...}} if you dont do it,
           // which is confusing, but we do it anyways here explicitly.
           model: {
@@ -62380,6 +62399,12 @@ window.SerializeItem = {
 
           }
         };
+
+        if (this.props.enable_alternative_pickup_locations) {
+          softwareRequest.model.transportable = this.fieldByKey('transportable').state.checked;
+        }
+
+        return softwareRequest;
       }
 
       var m = {
@@ -62467,6 +62492,10 @@ window.SerializeItem = {
 
       if (!this.isEdit()) {
         m.model.is_package = this.fieldByKey('is_package').state.checked;
+      }
+
+      if (this.props.enable_alternative_pickup_locations) {
+        m.model.transportable = this.fieldByKey('transportable').state.checked;
       }
 
       return m;
@@ -62754,10 +62783,18 @@ window.SerializeItem = {
     leftFields: function () {
 
       if (this.props.type == 'software') {
-        return ['product', 'version', 'manufacturer'];
+        var softwareFields = ['product', 'version', 'manufacturer'];
+        if (this.props.enable_alternative_pickup_locations) {
+          softwareFields.push('transportable');
+        }
+        return softwareFields;
       }
 
-      return ['product', 'is_package', 'version', 'manufacturer', 'description', 'technical_details', 'internal_description', 'hand_over_notes', 'allocations', 'categories'];
+      var fields = ['product', 'is_package', 'version', 'manufacturer', 'description', 'technical_details', 'internal_description', 'hand_over_notes'];
+      if (this.props.enable_alternative_pickup_locations) {
+        fields.push('transportable');
+      }
+      return fields.concat(['allocations', 'categories']);
     },
 
     rightFields: function () {
@@ -64058,6 +64095,25 @@ window.SerializeItem = {
       var renderMandatory = function () {
         return f.mandatory ? ' *' : null;
       };
+      var renderInfo = function () {
+        return f.info ? React.createElement('i', { className: 'fa fa-info-circle',
+          style: { marginLeft: '0.35em', color: '#888', cursor: 'help' },
+          ref: function (el) {
+            if (!el || el._tooltipsterInit) {
+              return;
+            }
+            el._tooltipsterInit = true;
+            $(el).tooltipster({
+              animation: 'fade',
+              arrow: true,
+              content: _jed(f.info),
+              delay: 0,
+              theme: 'tooltipster-default',
+              trigger: 'hover',
+              contentAsHTML: false
+            });
+          } }) : null;
+      };
 
       var labelStyle = {
         color: f.disabled ? '#aaa' : '3a3a3a'
@@ -64076,7 +64132,8 @@ window.SerializeItem = {
               'strong',
               { className: 'font-size-m inline-block', style: labelStyle },
               renderLabel(),
-              renderMandatory()
+              renderMandatory(),
+              renderInfo()
             )
           ),
           React.createElement(

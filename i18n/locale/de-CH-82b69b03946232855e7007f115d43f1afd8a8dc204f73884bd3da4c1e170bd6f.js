@@ -2631,6 +2631,18 @@ window.i18n.locale_data = {
          null,
          "dies ist ein Paket"
       ],
+      "Model is transportable": [
+         null,
+         "Modell ist transportierbar"
+      ],
+      "Software is transportable": [
+         null,
+         "Software ist transportierbar"
+      ],
+      "Ordering at alternative pickup locations possible": [
+         null,
+         "Bestellung an alternative Abholorte möglich"
+      ],
       "to edit this item": [
          null,
          "diesen Gegenstand zu editieren"
@@ -2736,6 +2748,10 @@ window.i18n.locale_data = {
          "Inventar-Verwalter"
       ],
       "New": [
+         null,
+         "Neu"
+      ],
+      "New inventory badge": [
          null,
          "Neu"
       ],
@@ -4869,6 +4885,14 @@ window.i18n.locale_data = {
       "Sunday": [
          null,
          "Sonntag"
+      ],
+      "Pickup location": [
+         null,
+         "Abholort"
+      ],
+      "Handed to courier": [
+         null,
+         "An Kurier übergeben"
       ]
    }
 }
