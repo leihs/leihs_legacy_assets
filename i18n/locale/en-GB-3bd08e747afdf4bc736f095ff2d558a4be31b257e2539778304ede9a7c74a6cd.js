@@ -2005,6 +2005,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Total price (indicative value)": [
+         null,
+         ""
+      ],
       "Tue": [
          null,
          ""
@@ -2386,6 +2390,10 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Start date is too soon for the pickup location's transfer buffer": [
+         null,
+         ""
+      ],
       "is late": [
          null,
          ""
@@ -2514,6 +2522,18 @@ window.i18n.locale_data = {
          null,
          ""
       ],
+      "Model is transportable": [
+         null,
+         ""
+      ],
+      "Software is transportable": [
+         null,
+         ""
+      ],
+      "Ordering at alternative pickup locations possible": [
+         null,
+         ""
+      ],
       "to edit this item": [
          null,
          ""
@@ -2617,6 +2637,10 @@ window.i18n.locale_data = {
       "Inventory manager": [
          null,
          ""
+      ],
+      "New inventory badge": [
+         null,
+         "New"
       ],
       "New User": [
          null,
