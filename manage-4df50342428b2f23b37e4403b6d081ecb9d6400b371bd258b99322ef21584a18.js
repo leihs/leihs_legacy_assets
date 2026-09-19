@@ -2794,6 +2794,7 @@
 
     function ManageBookingCalendar() {
       this.isClosedDay = bind(this.isClosedDay, this);
+      this.isTooSoonForPickupLocation = bind(this.isTooSoonForPickupLocation, this);
       this.getInventoryPool = bind(this.getInventoryPool, this);
       this.selectedPartitions = bind(this.selectedPartitions, this);
       this.setupPartitionSelector = bind(this.setupPartitionSelector, this);
@@ -2916,10 +2917,22 @@
       return App.InventoryPool.current;
     };
 
+    ManageBookingCalendar.prototype.isTooSoonForPickupLocation = function(date) {
+      var advanceDays, ip;
+      if (!_.any(this.reservations, function(r) {
+        return r.pickup_location_id;
+      })) {
+        return false;
+      }
+      ip = this.getInventoryPool();
+      advanceDays = Math.max(ip.borrow_reservation_advance_days || 0, ip.transfer_buffer_before_pick_up || 0);
+      return moment(date).isBefore(ip.earliestPossiblePickupDate(advanceDays), 'day');
+    };
+
     ManageBookingCalendar.prototype.isClosedDay = function(date) {
       var ip;
       ip = this.getInventoryPool();
-      return ManageBookingCalendar.__super__.isClosedDay.apply(this, arguments) || !ip.isVisitPossible(moment(date));
+      return ManageBookingCalendar.__super__.isClosedDay.apply(this, arguments) || !ip.isVisitPossible(moment(date)) || this.isTooSoonForPickupLocation(date);
     };
 
     return ManageBookingCalendar;
@@ -9640,6 +9653,7 @@
       this.store = bind(this.store, this);
       this.valid = bind(this.valid, this);
       this.validationAlerts = bind(this.validationAlerts, this);
+      this.startDateTooSoonForPickupLocation = bind(this.startDateTooSoonForPickupLocation, this);
       this.getSelectedInventoryPool = bind(this.getSelectedInventoryPool, this);
       this.calendarRendered = bind(this.calendarRendered, this);
       this.setupBookingCalendar = bind(this.setupBookingCalendar, this);
@@ -9845,6 +9859,18 @@
       return App.InventoryPool.current;
     };
 
+    ManageBookingCalendarDialogController.prototype.startDateTooSoonForPickupLocation = function() {
+      var advanceDays, ip;
+      if (!_.any(this.reservations, function(r) {
+        return r.pickup_location_id;
+      })) {
+        return false;
+      }
+      ip = this.getSelectedInventoryPool();
+      advanceDays = Math.max(ip.borrow_reservation_advance_days || 0, ip.transfer_buffer_before_pick_up || 0);
+      return this.getStartDate().isBefore(ip.earliestPossiblePickupDate(advanceDays), 'day');
+    };
+
     ManageBookingCalendarDialogController.prototype.validationAlerts = function() {
       var errors, ip;
       ip = this.getSelectedInventoryPool();
@@ -9861,6 +9887,9 @@
       if (ip.isClosedOn(this.getEndDate())) {
         errors.push(_jed("Inventory pool is closed on end date"));
       }
+      if (this.startDateTooSoonForPickupLocation()) {
+        errors.push(_jed("Start date is too soon for the pickup location's transfer buffer"));
+      }
       if (errors.length) {
         return this.showError(errors.join(", "));
       } else {
@@ -9869,7 +9898,7 @@
     };
 
     ManageBookingCalendarDialogController.prototype.valid = function() {
-      return true;
+      return !this.startDateTooSoonForPickupLocation();
     };
 
     ManageBookingCalendarDialogController.prototype.store = function() {};
