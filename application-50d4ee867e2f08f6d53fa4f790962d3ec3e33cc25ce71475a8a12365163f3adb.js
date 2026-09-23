@@ -57168,7 +57168,7 @@ This script provides functionalities for the interactivity with the topbar searc
           reservation.ids = [reservation.id];
           if (reservation.model_id != null) {
             existingLine = _.find(result, function(l) {
-              return l.model_id === reservation.model_id;
+              return l.model_id === reservation.model_id && l.pickup_location_id === reservation.pickup_location_id;
             });
           }
           if (existingLine != null) {
@@ -57728,7 +57728,7 @@ This script provides functionalities for the interactivity with the topbar searc
       return InventoryPool.__super__.constructor.apply(this, arguments);
     }
 
-    InventoryPool.configure("InventoryPool", "id", "name", "default_contract_note", "borrow_reservation_advance_days");
+    InventoryPool.configure("InventoryPool", "id", "name", "default_contract_note", "borrow_reservation_advance_days", "enable_alternative_pickup_locations", "default_pickup_location_name", "transfer_buffer_after_drop_off", "transfer_buffer_before_pick_up");
 
     InventoryPool.hasMany("availabilities", "App.Availability", "inventory_pool_id");
 
@@ -57923,7 +57923,7 @@ This script provides functionalities for the interactivity with the topbar searc
       return Model.__super__.constructor.apply(this, arguments);
     }
 
-    Model.configure("Model", "id", "product", "version", "type", "properties", "accessory_names");
+    Model.configure("Model", "id", "product", "version", "type", "properties", "accessory_names", "transportable");
 
     Model.hasOne("availability", "App.Availability", "model_id");
 
@@ -58184,7 +58184,7 @@ This script provides functionalities for the interactivity with the topbar searc
       return Reservation.__super__.constructor.apply(this, arguments);
     }
 
-    Reservation.configure("Reservation", "id", "inventory_pool_id", "user_id", "delegated_user_id", "status", "contract_id", "order_id", "model_id", "option_id", "purpose_id", "quantity", "start_date", "end_date", "item_id", "line_purpose");
+    Reservation.configure("Reservation", "id", "inventory_pool_id", "user_id", "delegated_user_id", "status", "contract_id", "order_id", "model_id", "option_id", "purpose_id", "quantity", "start_date", "end_date", "item_id", "line_purpose", "pickup_location_id", "pickup_location", "sent_to_pickup_location_at", "sent_to_pickup_location_by_user_id", "sent_back_to_main_location_at", "sent_back_to_main_location_by_user_id");
 
     Reservation.belongsTo("contract", "App.Contract", "contract_id");
 
