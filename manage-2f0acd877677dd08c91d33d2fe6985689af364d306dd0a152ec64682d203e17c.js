@@ -3733,6 +3733,87 @@
     return App.Reservation.trigger("update", this);
   };
 
+  window.App.Reservation.prototype.alternativePickupLocationsEnabled = function() {
+    var ref;
+    return !!((ref = App.InventoryPool.current) != null ? ref.enable_alternative_pickup_locations : void 0);
+  };
+
+  window.App.Reservation.prototype.pickupLocationName = function() {
+    var ref;
+    return (ref = this.pickup_location) != null ? ref.name : void 0;
+  };
+
+  window.App.Reservation.prototype.showsPickupLocation = function() {
+    return this.eligibleForCourier() && !!this.pickupLocationName();
+  };
+
+  window.App.Reservation.prototype.modelIsTransportable = function() {
+    var ref;
+    return !!((ref = this.model()) != null ? ref.transportable : void 0);
+  };
+
+  window.App.Reservation.prototype.eligibleForCourier = function() {
+    return this.alternativePickupLocationsEnabled() && !!this.pickup_location_id && this.modelIsTransportable();
+  };
+
+  window.App.Reservation.prototype.showsHandedToCourierForPickup = function() {
+    return this.eligibleForCourier() && this.status === "approved";
+  };
+
+  window.App.Reservation.prototype.showsHandedToCourierForReturn = function() {
+    return this.eligibleForCourier() && this.status === "signed" && !this.option_id;
+  };
+
+  window.App.Reservation.prototype.handedToCourierForPickup = function() {
+    return !!this.sent_to_pickup_location_at;
+  };
+
+  window.App.Reservation.prototype.handedToCourierForReturn = function() {
+    return !!this.sent_back_to_main_location_at;
+  };
+
+  window.App.Reservation.prototype.toggleCourier = function(direction, handed, options) {
+    if (options == null) {
+      options = {};
+    }
+    return $.ajax({
+      url: "/manage/" + App.InventoryPool.current.id + "/reservations/" + this.id + "/toggle_courier",
+      type: "POST",
+      data: {
+        direction: direction,
+        handed: handed
+      }
+    }).done((function(_this) {
+      return function(data) {
+        var key, root, _i, _len, _ref;
+        if (typeof data === "string") {
+          data = JSON.parse(data);
+        }
+        root = _this.constructor.irecords[_this.id] || _this;
+        if (data != null) {
+          _ref = ["sent_to_pickup_location_at", "sent_to_pickup_location_by_user_id", "sent_back_to_main_location_at", "sent_back_to_main_location_by_user_id", "pickup_location_id", "pickup_location"];
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            key = _ref[_i];
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+              root[key] = data[key];
+            }
+          }
+        }
+        return typeof options.onSuccess === "function" ? options.onSuccess(data) : void 0;
+      };
+    })(this)).fail((function(_this) {
+      return function(e) {
+        var msg, ref;
+        msg = ((ref = e.responseJSON) != null ? ref.message : void 0) || e.responseText;
+        App.Flash({
+          type: "error",
+          message: msg
+        });
+        return typeof options.onError === "function" ? options.onError(e) : void 0;
+      };
+    })(this));
+  };
+
 }).call(this);
 (function() {
   var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
@@ -5653,6 +5734,9 @@
           return _this.onSelectionChange(_this.getSelectedReservations());
         };
       })(this));
+      this.courierController = new App.ReservationsCourierController({
+        el: this.el
+      });
       this.fetchFunctionsSetup({
         "Model": "Item",
         "Software": "License"
@@ -5833,11 +5917,15 @@
     };
 
     HandOverController.prototype.render = function(renderAvailability) {
+      var ref;
       this.reservationsContainer.html(App.Render("manage/views/reservations/grouped_lines_with_action_date", App.Modules.HasLines.groupByDateRange(this.getLines(), false, "start_date"), {
         linePartial: "manage/views/reservations/hand_over_line",
-        renderAvailability: renderAvailability
+        renderAvailability: renderAvailability,
+        showCourierSelectAll: !!((ref = App.InventoryPool.current) != null ? ref.enable_alternative_pickup_locations : void 0),
+        canToggleCourier: App.AccessRight.atLeastRole(App.User.current.role, "lending_manager")
       }));
-      return this.lineSelection.restore();
+      this.lineSelection.restore();
+      return this.courierController.syncHeaders();
     };
 
     HandOverController.prototype.handOver = function() {
@@ -10836,6 +10924,295 @@
     extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
 
+  window.App.ReservationsCourierController = (function(superClass) {
+    extend(ReservationsCourierController, superClass);
+
+    ReservationsCourierController.prototype.events = {
+      "change [data-toggle-courier-to-pickup]": "toggleToPickup",
+      "change [data-toggle-courier-to-main]": "toggleToMain",
+      "change [data-select-courier-lines]": "toggleGroup",
+      "click [data-toggle-courier-to-pickup]": "stopPropagation",
+      "click [data-toggle-courier-to-main]": "stopPropagation",
+      "click [data-select-courier-lines]": "stopPropagation"
+    };
+
+    function ReservationsCourierController() {
+      this.supportsCourier = bind(this.supportsCourier, this);
+      this.syncHeaderFor = bind(this.syncHeaderFor, this);
+      this.syncHeaders = bind(this.syncHeaders, this);
+      this.selectorFor = bind(this.selectorFor, this);
+      this.courierInputs = bind(this.courierInputs, this);
+      this.groupCourierLines = bind(this.groupCourierLines, this);
+      this.syncCourierCheckboxes = bind(this.syncCourierCheckboxes, this);
+      this.toggleGroup = bind(this.toggleGroup, this);
+      this.toggleCurrent = bind(this.toggleCurrent, this);
+      this.toggleToMain = bind(this.toggleToMain, this);
+      this.toggleToPickup = bind(this.toggleToPickup, this);
+      this.stopPropagation = bind(this.stopPropagation, this);
+      ReservationsCourierController.__super__.constructor.apply(this, arguments);
+      this.syncHeaders();
+    }
+
+    ReservationsCourierController.prototype.stopPropagation = function(e) {
+      return e.stopPropagation();
+    };
+
+    ReservationsCourierController.prototype.toggleToPickup = function(e) {
+      return this.toggleCurrent(e, "to_pickup");
+    };
+
+    ReservationsCourierController.prototype.toggleToMain = function(e) {
+      return this.toggleCurrent(e, "to_main");
+    };
+
+    ReservationsCourierController.prototype.toggleCurrent = function(e, direction) {
+      var currentId, handed, line;
+      e.stopPropagation();
+      if (e.currentTarget.disabled) {
+        return;
+      }
+      handed = e.currentTarget.checked;
+      currentId = $(e.currentTarget).closest("[data-id]").data("id");
+      line = App.Reservation.find(currentId);
+      if (!((line != null) && this.supportsCourier(line, direction))) {
+        return;
+      }
+      return line.toggleCourier(direction, handed, {
+        onError: (function(_this) {
+          return function() {
+            $(e.currentTarget).prop("checked", !handed);
+            return _this.syncHeaders();
+          };
+        })(this),
+        onSuccess: (function(_this) {
+          return function() {
+            return _this.syncHeaders();
+          };
+        })(this)
+      });
+    };
+
+    ReservationsCourierController.prototype.toggleGroup = function(e) {
+      var changing, container, direction, handed, i, j, k, len, len1, line, lines, pending, previous, previousChanging, ref, results, failed;
+      e.stopPropagation();
+      if (e.currentTarget.disabled) {
+        return;
+      }
+      container = $(e.currentTarget).closest("[data-selected-lines-container]");
+      handed = e.currentTarget.checked;
+      ref = this.groupCourierLines(container), direction = ref.direction, lines = ref.lines;
+      if (!lines.length) {
+        return;
+      }
+      previous = (function() {
+        var j, len, results;
+        results = [];
+        for (j = 0, len = lines.length; j < len; j++) {
+          line = lines[j];
+          if (direction === "to_pickup") {
+            results.push(line.handedToCourierForPickup());
+          } else {
+            results.push(line.handedToCourierForReturn());
+          }
+        }
+        return results;
+      })();
+      changing = [];
+      previousChanging = [];
+      for (i = j = 0, len = lines.length; j < len; i = ++j) {
+        line = lines[i];
+        if (previous[i] !== handed) {
+          changing.push(line);
+          previousChanging.push(previous[i]);
+        }
+      }
+      if (!changing.length) {
+        return this.syncHeaders();
+      }
+      this.syncCourierCheckboxes(changing, direction, handed);
+      if (changing.length === 1) {
+        changing[0].toggleCourier(direction, handed, {
+          onError: (function(_this) {
+            return function() {
+              _this.syncCourierCheckboxes(changing, direction, previousChanging[0]);
+              return _this.syncHeaders();
+            };
+          })(this),
+          onSuccess: (function(_this) {
+            return function() {
+              _this.syncCourierCheckboxes(changing, direction, handed);
+              return _this.syncHeaders();
+            };
+          })(this)
+        });
+        return;
+      }
+      pending = changing.length;
+      failed = [];
+      results = [];
+      for (i = k = 0, len1 = changing.length; k < len1; i = ++k) {
+        line = changing[i];
+        results.push((function(_this) {
+          return function(line, i) {
+            return line.toggleCourier(direction, handed, {
+              silent: true
+            }).fail(function() {
+              failed.push(line);
+              return _this.syncCourierCheckboxes([line], direction, previousChanging[i]);
+            }).always(function() {
+              var l, succeeded;
+              pending -= 1;
+              if (pending === 0) {
+                succeeded = (function() {
+                  var len2, n, results1;
+                  results1 = [];
+                  for (n = 0, len2 = changing.length; n < len2; n++) {
+                    l = changing[n];
+                    if (failed.indexOf(l) < 0) {
+                      results1.push(l);
+                    }
+                  }
+                  return results1;
+                })();
+                if (succeeded.length) {
+                  _this.syncCourierCheckboxes(succeeded, direction, handed);
+                }
+                return _this.syncHeaders();
+              }
+            });
+          };
+        })(this)(line, i));
+      }
+      return results;
+    };
+
+    ReservationsCourierController.prototype.syncCourierCheckboxes = function(lines, direction, handed) {
+      var j, len, line, results, selector;
+      selector = this.selectorFor(direction);
+      results = [];
+      for (j = 0, len = lines.length; j < len; j++) {
+        line = lines[j];
+        results.push(this.el.find("[data-id='" + line.id + "'] " + selector).prop("checked", handed));
+      }
+      return results;
+    };
+
+    ReservationsCourierController.prototype.groupCourierLines = function(container) {
+      var direction, id, ids, input, inputs, line, lines, ref;
+      ref = this.courierInputs(container), direction = ref.direction, inputs = ref.inputs;
+      ids = (function() {
+        var j, len, results;
+        results = [];
+        for (j = 0, len = inputs.length; j < len; j++) {
+          input = inputs[j];
+          results.push($(input).closest("[data-id]").data("id"));
+        }
+        return results;
+      })();
+      lines = (function() {
+        var j, len, results;
+        results = [];
+        for (j = 0, len = ids.length; j < len; j++) {
+          id = ids[j];
+          results.push(App.Reservation.find(id));
+        }
+        return results;
+      })();
+      lines = (function() {
+        var j, len, results;
+        results = [];
+        for (j = 0, len = lines.length; j < len; j++) {
+          line = lines[j];
+          if ((line != null) && this.supportsCourier(line, direction)) {
+            results.push(line);
+          }
+        }
+        return results;
+      }).call(this);
+      return {
+        direction: direction,
+        lines: lines
+      };
+    };
+
+    ReservationsCourierController.prototype.courierInputs = function(container) {
+      var pickup;
+      pickup = container.find("[data-toggle-courier-to-pickup]");
+      if (pickup.length) {
+        return {
+          direction: "to_pickup",
+          inputs: pickup
+        };
+      }
+      return {
+        direction: "to_main",
+        inputs: container.find("[data-toggle-courier-to-main]")
+      };
+    };
+
+    ReservationsCourierController.prototype.selectorFor = function(direction) {
+      if (direction === "to_pickup") {
+        return "[data-toggle-courier-to-pickup]";
+      } else {
+        return "[data-toggle-courier-to-main]";
+      }
+    };
+
+    ReservationsCourierController.prototype.syncHeaders = function() {
+      return this.el.find("[data-selected-lines-container]").each((function(_this) {
+        return function(i, el) {
+          return _this.syncHeaderFor($(el));
+        };
+      })(this));
+    };
+
+    ReservationsCourierController.prototype.syncHeaderFor = function(container) {
+      var checkbox, header, headerOffset, inputs, inset, label, labelOffset, target, targetOffset;
+      label = container.find("[data-courier-select-all]");
+      if (!label.length) {
+        return;
+      }
+      inputs = container.find("[data-toggle-courier-to-pickup], [data-toggle-courier-to-main]");
+      label.toggleClass("is-empty", inputs.length === 0);
+      if (!inputs.length) {
+        return;
+      }
+      checkbox = label.find("[data-select-courier-lines]");
+      checkbox.prop("checked", inputs.filter(":not(:checked)").length === 0);
+      target = inputs.filter(":visible").first();
+      if (!target.length) {
+        target = inputs.first();
+      }
+      header = label.closest(".grouped-lines-header");
+      labelOffset = label.offset();
+      targetOffset = target.offset();
+      headerOffset = header.offset();
+      if (!((labelOffset != null) && (targetOffset != null) && (headerOffset != null))) {
+        return;
+      }
+      label.css("left", 0);
+      inset = checkbox.offset().left - label.offset().left;
+      return label.css("left", targetOffset.left - headerOffset.left - inset);
+    };
+
+    ReservationsCourierController.prototype.supportsCourier = function(line, direction) {
+      if (direction === "to_pickup") {
+        return line.showsHandedToCourierForPickup();
+      } else {
+        return line.showsHandedToCourierForReturn();
+      }
+    };
+
+    return ReservationsCourierController;
+
+  })(Spine.Controller);
+
+}).call(this);
+(function() {
+  var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty;
+
   window.App.ReservationsDestroyController = (function(superClass) {
     extend(ReservationsDestroyController, superClass);
 
@@ -12531,6 +12908,9 @@
       this.returnedQuantitiesController = new App.ReturnedQuantityController({
         el: this.el
       });
+      this.courierController = new App.ReservationsCourierController({
+        el: this.el
+      });
       if (this.getLines().length) {
         this.fetchAvailability();
       }
@@ -12596,12 +12976,16 @@
     };
 
     TakeBackController.prototype.render = function(renderAvailability) {
+      var ref;
       this.reservationsContainer.html(App.Render("manage/views/reservations/grouped_lines_with_action_date", App.Modules.HasLines.groupByDateRange(this.getLines(), false, "end_date"), {
         linePartial: "manage/views/reservations/take_back_line",
-        renderAvailability: renderAvailability
+        renderAvailability: renderAvailability,
+        showCourierSelectAll: !!((ref = App.InventoryPool.current) != null ? ref.enable_alternative_pickup_locations : void 0),
+        canToggleCourier: App.AccessRight.atLeastRole(App.User.current.role, "lending_manager")
       }));
       this.returnedQuantitiesController.restore();
-      return this.lineSelection.restore();
+      this.lineSelection.restore();
+      return this.courierController.syncHeaders();
     };
 
     TakeBackController.prototype.takeBack = function() {
@@ -13306,7 +13690,7 @@
 (function($) {$.views.templates("manage/views/availabilities/loaded", "<div class=\'emboss padding-inset-s\'>\n  <p class=\'paragraph-s\'>\n    <i class=\'fa fa-check margin-right-m\'><\/i>\n    {{jed \"Availability loaded\"/}}\n  <\/p>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/availabilities/loading", "<div class=\'emboss blue padding-inset-s\'>\n  <p class=\'paragraph-s\'>\n    <img class=\'margin-right-s max-width-micro\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n    <strong>{{jed \"Loading availability\"/}}<\/strong>\n  <\/p>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/booking_calendar/calendar_dialog", "<div class=\'modal fade ui-modal medium\' role=\'dialog\' tabindex=\'-1\'>\n  <div class=\'modal-header row\'>\n    <div class=\'col3of5\'>\n      <h2 class=\'headline-l\'>{{jed \"Edit reservation\"/}}<\/h2>\n      <h3 class=\'headline-m\'>\n        {{>user.firstname}}\n        {{>user.lastname}}\n      <\/h3>\n    <\/div>\n    <div class=\'col2of5 text-align-right\'>\n      <div class=\'modal-close\'>{{jed \"Cancel\"/}}<\/div>\n      <button class=\'button green\' disabled=\'disabled\' id=\'submit-booking-calendar\'>{{jed \"Save\"/}}<\/button>\n    <\/div>\n  <\/div>\n  <div id=\'booking-calendar-errors\'><\/div>\n  <div class=\'modal-body\'>\n    <form class=\'padding-inset-m\'>\n      <div class=\'hidden\' id=\'booking-calendar-controls\'>\n        <div class=\'col5of8 float-right\'>\n          <div class=\'row grey padding-bottom-xxs\'>\n            <div class=\'col1of2\'>\n              <div class=\'col1of2 padding-right-xs text-align-left\'>\n                <div class=\'row {{if ~startDateDisabled}} hidden{{/if}}\'>\n                  <span>{{jed \"Start date\"/}}<\/span>\n                  <a class=\'grey fa fa-eye position-absolute-right padding-right-xxs\' id=\'jump-to-start-date\'><\/a>\n                <\/div>\n              <\/div>\n              <div class=\'col1of2 padding-right-xs text-align-left\'>\n                <div class=\'row\'>\n                  <span>{{jed \"End date\"/}}<\/span>\n                  <a class=\'grey fa fa-eye position-absolute-right padding-right-xxs\' id=\'jump-to-end-date\'><\/a>\n                <\/div>\n              <\/div>\n            <\/div>\n            <div class=\'col1of2\'>\n              <div class=\'col2of8 text-align-left\'>{{jed \"Quantity\"/}}<\/div>\n              <div class=\'col6of8 padding-left-xs text-align-left\'>{{jed \"Availability\"/}}<\/div>\n            <\/div>\n          <\/div>\n          <div class=\'row\'>\n            <div class=\'col1of2\'>\n              <div class=\'col1of2 padding-right-xs\'>\n                <div class=\'row {{if ~startDateDisabled}} hidden{{/if}}\'>\n                  <input autocomplete=\'off\' id=\'booking-calendar-start-date\' type=\'text\'>\n                <\/div>\n              <\/div>\n              <div class=\'col1of2 padding-right-xs\'>\n                <input autocomplete=\'off\' id=\'booking-calendar-end-date\' type=\'text\'>\n              <\/div>\n            <\/div>\n            <div class=\'col1of2\'>\n              <div class=\'col2of8\'>\n                {{if ~quantityDisabled}}\n                <input autocomplete=\'off\' class=\'text-align-center\' disabled=\'disabled\' id=\'booking-calendar-quantity\' type=\'text\' value=\'1\'>\n                {{else}}\n                <input autocomplete=\'off\' class=\'text-align-center\' id=\'booking-calendar-quantity\' type=\'text\' value=\'1\'>\n                {{/if}}\n              <\/div>\n              <div class=\'col6of8 padding-left-xs\'>\n                <select class=\'width-full\' id=\'booking-calendar-partitions\'><\/select>\n              <\/div>\n            <\/div>\n          <\/div>\n        <\/div>\n      <\/div>\n      <div class=\'booking-calendar padding-top-xs\' id=\'booking-calendar\'><\/div>\n      <img class=\'loading margin-horziontal-auto margin-vertical-xl\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n    <\/form>\n    <div id=\'booking-calendar-lines\'>\n      <div class=\'list-of-lines separated-top\'><\/div>\n    <\/div>\n  <\/div>\n  <div class=\'modal-footer\'><\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/booking_calendar/line", "<div class=\'line row\'>\n  {{if model().availability}}\n  <div class=\'line-info{{if model().availability().withoutLines([#view.data]).maxAvailableForGroups(~start_date, ~end_date, ~groupIds) < (~quantity||quantity)}} red{{/if}}\'><\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if ~quantity}}\n      {{>~quantity}}\n      {{else subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if model().availability}}\n    <span class=\'grey-text\'>\n      /\n      {{>effectiveAvailableForUser()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    <strong>{{>model().name()}}<\/strong>\n  <\/div>\n  <div class=\'col4of10 line-col\'>\n    {{if model().availability}}\n    {{for model().availability().withoutLines([#view.data]).unavailableRanges((~quantity||quantity), ~groupIds, ~start_date, ~end_date)}}\n    <strong class=\'darkred-text\'>{{date startDate/}}-{{date endDate/}}<\/strong>\n    {{/for}}\n    {{/if}}\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/booking_calendar/line", "<div class=\'line row\'>\n  {{if model().availability}}\n  <div class=\'line-info{{if model().availability().withoutLines([#view.data]).maxAvailableForGroups(~start_date, ~end_date, ~groupIds) < (~quantity||quantity)}} red{{/if}}\'><\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if ~quantity}}\n      {{>~quantity}}\n      {{else subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if model().availability}}\n    <span class=\'grey-text\'>\n      /\n      {{>effectiveAvailableForUser()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    <strong>{{>model().name()}}<\/strong>\n    {{if showsPickupLocation()}}\n    <br>\n    <span class=\'orange-text\' data-pickup-location>\n      {{jed \"Pickup location\"/}}: {{>pickupLocationName()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col4of10 line-col\'>\n    {{if model().availability}}\n    {{for model().availability().withoutLines([#view.data]).unavailableRanges((~quantity||quantity), ~groupIds, ~start_date, ~end_date)}}\n    <strong class=\'darkred-text\'>{{date startDate/}}-{{date endDate/}}<\/strong>\n    {{/for}}\n    {{/if}}\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/booking_calendar/partitions", "<option data-value=\'[{{>user}}]\'>{{jed \"Borrower\"/}}<\/option>\n{{if userGroups.length}}\n<optgroup label=\'{{jed \'Entitlement-Groups of this customer\'/}}\'>\n  {{for userGroups}}\n  <option data-value=\'[{{>id}}]\'>{{>name}}<\/option>\n  {{/for}}\n<\/optgroup>\n{{/if}}\n{{if otherGroups.length}}\n<optgroup label=\'{{jed \'Other entitlement-groups\'/}}\'>\n  {{for otherGroups}}\n  <option data-value=\'[{{>id}}]\'>{{>name}}<\/option>\n  {{/for}}\n<\/optgroup>\n{{/if}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/categories/filter_list_current", "<a class=\'emboss links black row focus-hover-thin font-size-m padding-horizontal-s padding-vertical-xs round-border-on-hover\' data-id=\'{{>id}}\' data-type=\'category-current\'>\n  <i class=\'arrow left\'><\/i>\n  {{>name}}\n<\/a>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/categories/filter_list_entry", "<a class=\'links black row focus-hover-thin font-size-m padding-horizontal-s padding-vertical-xs round-border-on-hover\' data-id=\'{{>id}}\' data-type=\'category-filter\'>\n  {{>name}}\n<\/a>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
@@ -13407,19 +13791,19 @@
 (function($) {$.views.templates("manage/views/reservations/assign/autocomplete_element", "<li class=\'separated-bottom exclude-last-child width-xl\'>\n  <a>\n    <div class=\'row\'>\n      <div class=\'col1of3\'>\n        <strong>\n          {{>inventoryCode}}\n        <\/strong>\n      <\/div>\n      <div class=\'col2of3 text-ellipsis\' title=\'{{>name}}\'>\n        <span class=\'grey-text\'>{{>name}}<\/span>\n      <\/div>\n    <\/div>\n  <\/a>\n<\/li>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/cell", "{{>quantity()}}\n{{jed quantity() \"Item\" \"Items\"/}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/explorative_add_dialog", "<div class=\'modal fade ui-modal medium\' role=\'dialog\' tabindex=\'-1\'>\n  <div class=\'modal-header row padding-bottom-s\'>\n    <div class=\'col4of5\'>\n      <h2 class=\'headline-l\'>{{jed \'Models\'/}} {{jed \'by browsing categories\'/}}<\/h2>\n      <h3 class=\'headline-m light\'>({{date startDate/}} - {{date endDate/}})<\/h3>\n    <\/div>\n    <div class=\'col1of5 text-align-right\'>\n      <div class=\'modal-close\'>{{jed \"Cancel\"/}}<\/div>\n    <\/div>\n  <\/div>\n  <div class=\'modal-body separated-top\'>\n    <div class=\'table\'>\n      <div class=\'table-row\'>\n        <div class=\'col1of4 table-cell separated-right padding-inset-m\' id=\'categories\'>\n          <div class=\'row padding-inset-s\'>\n            <input autocomplete=\'off\' class=\'small\' id=\'category-search\' placeholder=\'{{jed \'Search category\'/}}\' type=\'text\'>\n          <\/div>\n          <div id=\'category-root\'><\/div>\n          <div id=\'category-current\'><\/div>\n          <div class=\'row padding-bottom-s\' id=\'category-list\'>\n            <div class=\'height-xs\'><\/div>\n            <img class=\'margin-horziontal-auto margin-top-xxl margin-bottom-xxl\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n          <\/div>\n        <\/div>\n        <div class=\'table-cell col3of4 list-of-lines even min-height-l\' id=\'models\'>\n          <div class=\'height-s\'><\/div>\n          <img class=\'margin-horziontal-auto margin-top-xxl margin-bottom-xxl\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n          <div class=\'height-s\'><\/div>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'modal-footer\'><\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/grouped_lines", "<div class=\'emboss deep padding-bottom-s margin-bottom-m\' data-selected-lines-container>\n  <div class=\'row\'>\n    <div class=\'col1of2 padding-vertical-s\'>\n      <label class=\'padding-inset-s inline\'>\n        <input autocomplete=\'off\' data-select-lines type=\'checkbox\'>\n      <\/label>\n      <p class=\'paragraph-s inline\'>\n        {{day start_date/}}\n        {{date start_date/}}\n        -\n        {{day end_date/}}\n        {{date end_date/}}\n      <\/p>\n    <\/div>\n    <div class=\'col1of2 padding-inset-s text-align-right\'>\n      <p class=\'paragraph-s inline\'>\n        {{diffDatesInDays start_date end_date/}}\n      <\/p>\n    <\/div>\n  <\/div>\n  <div class=\'row\'>\n    {{partial ~linePartial reservations #view.ctx/}}\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/grouped_lines", "<div class=\'emboss deep padding-bottom-s margin-bottom-m\' data-selected-lines-container>\n  {{if ~showCourierSelectAll}}\n  <div class=\'grouped-lines-header row\'>\n    <div class=\'col1of2 padding-vertical-s\'>\n      <label class=\'padding-inset-s inline\'>\n        <input autocomplete=\'off\' data-select-lines type=\'checkbox\'>\n      <\/label>\n      <p class=\'paragraph-s inline\'>\n        {{day start_date/}}\n        {{date start_date/}}\n        -\n        {{day end_date/}}\n        {{date end_date/}}\n      <\/p>\n    <\/div>\n    <div class=\'col1of2 padding-inset-s text-align-right\'>\n      <p class=\'paragraph-s inline\'>\n        {{diffDatesInDays start_date end_date/}}\n      <\/p>\n    <\/div>\n    <label class=\'font-normal\' data-courier-select-all>\n      <input autocomplete=\'off\' data-select-courier-lines type=\'checkbox\' {{if !~canToggleCourier}}disabled{{/if}}>\n      {{jed \"Select all\"/}}\n    <\/label>\n  <\/div>\n  <div class=\'row\'>\n    {{partial ~linePartial reservations #view.ctx/}}\n  <\/div>\n  {{else}}\n  <div class=\'row\'>\n    <div class=\'col1of2 padding-vertical-s\'>\n      <label class=\'padding-inset-s inline\'>\n        <input autocomplete=\'off\' data-select-lines type=\'checkbox\'>\n      <\/label>\n      <p class=\'paragraph-s inline\'>\n        {{day start_date/}}\n        {{date start_date/}}\n        -\n        {{day end_date/}}\n        {{date end_date/}}\n      <\/p>\n    <\/div>\n    <div class=\'col1of2 padding-inset-s text-align-right\'>\n      <p class=\'paragraph-s inline\'>\n        {{diffDatesInDays start_date end_date/}}\n      <\/p>\n    <\/div>\n  <\/div>\n  <div class=\'row\'>\n    {{partial ~linePartial reservations #view.ctx/}}\n  <\/div>\n  {{/if}}\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/grouped_lines_with_action_date", "<h3 class=\'headline-s padding-inset-s\'>\n  {{if ~moment(date).endOf(\"day\").diff(~moment().endOf(\"day\"), \"days\") == 0}}\n  <strong>{{jed \"Today\"/}}<\/strong>\n  {{else}}\n  {{day date/}}\n  {{date date/}}\n  {{/if}}\n<\/h3>\n{{partial \"manage/views/reservations/grouped_lines\" groups #view.ctx/}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/hand_over_line", "{{if model_id}}\n{{partial \'manage/views/reservations/hand_over_line/item_line\' #view.data #view.ctx/}}\n{{else option_id}}\n{{partial \'manage/views/reservations/hand_over_line/option_line\' #view.data #view.ctx/}}\n{{/if}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/hand_over_line/assigned_item", "<input autocomplete=\'off\' class=\'small width-full has-addon text-align-center\' data-assign-item disabled id=\'assigned-item-{{>id}}\' type=\'text\' value=\'{{>item().inventory_code}}\'>\n<label class=\'addon small transparent no-padding\' data-remove-assignment for=\'assigned-item-{{>id}}\'>\n  <span class=\'link grey padding-inset-xs vertical-align-middle\'>\n    <i class=\'fa fa-times-circle\'><\/i>\n  <\/span>\n<\/label>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/hand_over_line/item_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'item_line\'>\n  <div class=\'{{if ~renderAvailability && anyProblems()}}line-info red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col2of10 line-col text-align-center\'>\n    <div class=\'row\'>\n      {{if item()}}\n      {{partial \'manage/views/reservations/hand_over_line/assigned_item\' #view.data/}}\n      {{else}}\n      {{partial \'manage/views/reservations/hand_over_line/unassigned_item\' #view.data/}}\n      {{/if}}\n    <\/div>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n    {{if item() && item().children().all().length}}\n    <ul style=\'font-size: 0.8em; list-style-type: disc; margin-left: 1.5em;\'>\n      {{for item().children().all()}}\n      <li>\n        {{>to_s}}\n      <\/li>\n      {{/for}}\n    <\/ul>\n    {{/if}}\n    {{if model().accessory_names && model().accessory_names.length}}\n    <br>\n    <span>{{>model().accessory_names}}<\/span>\n    {{/if}}\n    {{if model().hand_over_note}}\n    <br>\n    <span class=\'grey-text\'>{{>model().hand_over_note}}<\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if order()}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>order().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n    {{else}}\n    {{if line_purpose}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>line_purpose}}\'>\n      <i class=\'fa fa-comment fa-flip-horizontal lightgrey\'><\/i>\n    <\/div>\n    {{/if}}\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-line>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/hand_over_line/option_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'option_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col\'>\n    <input class=\'small width-full text-align-center\' data-line-quantity type=\'text\' value=\'{{>quantity}}\'>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span class=\'grey-text\'>{{>option().inventory_code}}<\/span>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\'>{{>option().name()}}<\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if order()}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>order().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n    {{else}}\n    {{if line_purpose}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>line_purpose}}\'>\n      <i class=\'fa fa-comment fa-flip-horizontal lightgrey\'><\/i>\n    <\/div>\n    {{/if}}\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \'Change entry\'/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-line>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/hand_over_line/item_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'item_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col2of10 line-col text-align-center\'>\n    <div class=\'row\'>\n      {{if item()}}\n      {{partial \'manage/views/reservations/hand_over_line/assigned_item\' #view.data/}}\n      {{else}}\n      {{partial \'manage/views/reservations/hand_over_line/unassigned_item\' #view.data/}}\n      {{/if}}\n    <\/div>\n  <\/div>\n  <div class=\'{{if alternativePickupLocationsEnabled()}}col3of10{{else}}col4of10{{/if}} line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n    {{if item() && item().children().all().length}}\n    <ul style=\'font-size: 0.8em; list-style-type: disc; margin-left: 1.5em;\'>\n      {{for item().children().all()}}\n      <li>\n        {{>to_s}}\n      <\/li>\n      {{/for}}\n    <\/ul>\n    {{/if}}\n    {{if model().accessory_names && model().accessory_names.length}}\n    <br>\n    <span>{{>model().accessory_names}}<\/span>\n    {{/if}}\n    {{if model().hand_over_note}}\n    <br>\n    <span class=\'grey-text\'>{{>model().hand_over_note}}<\/span>\n    {{/if}}\n    {{if showsPickupLocation()}}\n    <br>\n    <span class=\'orange-text\' data-pickup-location>\n      {{jed \"Pickup location\"/}}: {{>pickupLocationName()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if order()}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>order().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n    {{else}}\n    {{if line_purpose}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>line_purpose}}\'>\n      <i class=\'fa fa-comment fa-flip-horizontal lightgrey\'><\/i>\n    <\/div>\n    {{/if}}\n    {{/if}}\n  <\/div>\n  {{if alternativePickupLocationsEnabled()}}\n  <div class=\'col1of10 line-col text-align-left\'>\n    {{if showsHandedToCourierForPickup()}}\n    <label class=\'font-normal\'>\n      <input autocomplete=\'off\' data-toggle-courier-to-pickup type=\'checkbox\' {{if handedToCourierForPickup()}}checked{{/if}} {{if !~canToggleCourier}}disabled{{/if}}>\n      <span>{{jed \"Handed to courier\"/}}</span>\n    <\/label>\n    {{/if}}\n  <\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-line>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/hand_over_line/option_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'option_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col\'>\n    <input class=\'small width-full text-align-center\' data-line-quantity type=\'text\' value=\'{{>quantity}}\'>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span class=\'grey-text\'>{{>option().inventory_code}}<\/span>\n  <\/div>\n  <div class=\'{{if alternativePickupLocationsEnabled()}}col3of10{{else}}col4of10{{/if}} line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\'>{{>option().name()}}<\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if order()}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>order().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n    {{else}}\n    {{if line_purpose}}\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>line_purpose}}\'>\n      <i class=\'fa fa-comment fa-flip-horizontal lightgrey\'><\/i>\n    <\/div>\n    {{/if}}\n    {{/if}}\n  <\/div>\n  {{if alternativePickupLocationsEnabled()}}\n  <div class=\'col1of10 line-col text-align-left\'>\n  <\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \'Change entry\'/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-line>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/hand_over_line/unassigned_item", "<form data-assign-item-form>\n  <input autocomplete=\'off\' class=\'small width-full has-addon text-align-center\' data-assign-item id=\'assigned-item-{{>id}}\' type=\'text\'>\n  <label class=\'addon small transparent padding-right-s\' for=\'assigned-item-{{>id}}\'>\n    <div class=\'arrow down\'><\/div>\n  <\/label>\n<\/form>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/order_line", "<div class=\'order-line line light row focus-hover-thin\' data-ids=\'{{JSON ids/}}\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if ~renderAvailability}}\n    <span class=\'grey-text\'>\n      /\n      {{>effectiveAvailableForUser()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col6of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-left padding-horizontal-m\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON ids/}}\'>\n        {{jed \"Change entry\"/}}\n      <\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model_id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-lines data-ids=\'{{JSON ids/}}\'>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/order_line", "<div class=\'order-line line light row focus-hover-thin\' data-ids=\'{{JSON ids/}}\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span>\n      {{if subreservations}}\n      {{sum subreservations \"quantity\"/}}\n      {{else}}\n      {{>quantity}}\n      {{/if}}\n    <\/span>\n    {{if ~renderAvailability}}\n    <span class=\'grey-text\'>\n      /\n      {{>effectiveAvailableForUser()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col6of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n    {{if showsPickupLocation()}}\n    <br>\n    <span class=\'orange-text\' data-pickup-location>\n      {{jed \"Pickup location\"/}}: {{>pickupLocationName()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-left padding-horizontal-m\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON ids/}}\'>\n        {{jed \"Change entry\"/}}\n      <\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model_id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-swap-model>\n              <i class=\'fa fa-exchange\'><\/i>\n              {{jed \"Swap Model\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item red\' data-destroy-lines data-ids=\'{{JSON ids/}}\'>\n              <i class=\'fa fa-trash\'><\/i>\n              {{jed \"Delete\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/problems_tooltip", "<div class=\'width-m\'>\n  {{for content}}\n  <div class=\'padding-vertical-xxs\'>\n    <div class=\'padding-inset-s emboss\'>\n      <strong class=\'font-size-m\'>{{>message}}<\/strong>\n    <\/div>\n  <\/div>\n  {{/for}}\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/removing", "<div class=\'emboss blue padding-inset-s\'>\n  <p class=\'paragraph-s\'>\n    <img class=\'margin-right-s max-width-micro\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n    <strong>\n      {{jed \"Removing items\"/}}\n    <\/strong>\n  <\/p>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/take_back_line", "{{if model_id}}\n{{partial \'manage/views/reservations/take_back_line/item_line\' #view.data #view.ctx/}}\n{{else option_id}}\n{{partial \'manage/views/reservations/take_back_line/option_line\' #view.data #view.ctx/}}\n{{/if}}\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/take_back_line/item_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'item_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col2of10 line-col text-align-center\'>\n    <div class=\'row\'>{{>item().inventory_code}}<\/div>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n    {{if model().accessory_names && model().accessory_names.length}}\n    <br>\n    <span>{{>model().accessory_names}}<\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>contract().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems() && item()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' href=\'{{>contract().url()}}\' target=\'_blank\'>\n              <i class=\'fa fa-file-alt\'><\/i>\n              {{jed \"Contract\"/}}\n              {{>contract().compact_id}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-inspect-item data-item-id=\'{{>item_id}}\'>\n              <i class=\'fa fa-search\'><\/i>\n              {{jed \"Inspect\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
-(function($) {$.views.templates("manage/views/reservations/take_back_line/option_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'option_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col\'>\n    <div class=\'row table\'>\n      <div class=\'table-row\'>\n        <div class=\'col2of3 table-cell vertical-align-middle line-height-xxl\'>\n          <input autocomplete=\'off\' class=\'small width-full text-align-center\' data-quantity-returned inputmode=\'numeric\' type=\'text\'>\n        <\/div>\n        <div class=\'col1of3 table-cell vertical-align-middle line-height-xxl\'>\n          <span>/{{>quantity}}<\/span>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span class=\'grey-text\'>{{>option().inventory_code}}<\/span>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\'>{{>option().name()}}<\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>contract().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' href=\'{{>contract().url()}}\' target=\'_blank\'>\n              <i class=\'fa fa-file-alt\'><\/i>\n              {{jed \"Contract\"/}}\n              {{>contract().compact_id}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/take_back_line/item_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'item_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col2of10 line-col text-align-center\'>\n    <div class=\'row\'>{{>item().inventory_code}}<\/div>\n  <\/div>\n  <div class=\'{{if alternativePickupLocationsEnabled()}}col3of10{{else}}col4of10{{/if}} line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\' data-id=\'{{>model().id}}\' data-type=\'model-cell\'>\n      {{>model().name()}}\n    <\/strong>\n    {{if model().accessory_names && model().accessory_names.length}}\n    <br>\n    <span>{{>model().accessory_names}}<\/span>\n    {{/if}}\n    {{if showsPickupLocation()}}\n    <br>\n    <span class=\'orange-text\' data-pickup-location>\n      {{jed \"Pickup location\"/}}: {{>pickupLocationName()}}\n    <\/span>\n    {{/if}}\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>contract().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n  <\/div>\n  {{if alternativePickupLocationsEnabled()}}\n  <div class=\'col1of10 line-col text-align-left\'>\n    {{if showsHandedToCourierForReturn()}}\n    <label class=\'font-normal\'>\n      <input autocomplete=\'off\' data-toggle-courier-to-main type=\'checkbox\' {{if handedToCourierForReturn()}}checked{{/if}} {{if !~canToggleCourier}}disabled{{/if}}>\n      <span>{{jed \"Handed to courier\"/}}</span>\n    <\/label>\n    {{/if}}\n  <\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems() && item()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' href=\'{{>contract().url()}}\' target=\'_blank\'>\n              <i class=\'fa fa-file-alt\'><\/i>\n              {{jed \"Contract\"/}}\n              {{>contract().compact_id}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>model().id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n          <li>\n            <a class=\'dropdown-item\' data-inspect-item data-item-id=\'{{>item_id}}\'>\n              <i class=\'fa fa-search\'><\/i>\n              {{jed \"Inspect\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/reservations/take_back_line/option_line", "<div class=\'line light row focus-hover-thin\' data-id=\'{{>id}}\' data-line-type=\'option_line\'>\n  <div class=\'line-info{{if ~renderAvailability && anyProblems()}} red{{/if}}\'><\/div>\n  <div class=\'line-col padding-left-xs\'>\n    <div class=\'row\'>\n      <div class=\'col1of4\'>\n        <label class=\'padding-inset-s\'>\n          <input autocomplete=\'off\' data-select-line type=\'checkbox\'>\n        <\/label>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col\'>\n    <div class=\'row table\'>\n      <div class=\'table-row\'>\n        <div class=\'col2of3 table-cell vertical-align-middle line-height-xxl\'>\n          <input autocomplete=\'off\' class=\'small width-full text-align-center\' data-quantity-returned inputmode=\'numeric\' type=\'text\'>\n        <\/div>\n        <div class=\'col1of3 table-cell vertical-align-middle line-height-xxl\'>\n          <span>/{{>quantity}}<\/span>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <span class=\'grey-text\'>{{>option().inventory_code}}<\/span>\n  <\/div>\n  <div class=\'{{if alternativePickupLocationsEnabled()}}col3of10{{else}}col4of10{{/if}} line-col text-align-left\'>\n    <strong class=\'test-fix-timeline\'>{{>option().name()}}<\/strong>\n  <\/div>\n  <div class=\'col1of10 line-col text-align-center\'>\n    <div class=\'tooltip\' data-tooltip-template=\'manage/views/purposes/tooltip\' title=\'{{>contract().purpose}}\'>\n      <i class=\'fa fa-comment\'><\/i>\n    <\/div>\n  <\/div>\n  {{if alternativePickupLocationsEnabled()}}\n  <div class=\'col1of10 line-col text-align-left\'>\n  <\/div>\n  {{/if}}\n  <div class=\'col1of10 line-col text-align-center\'>\n    {{if ~renderAvailability && anyProblems()}}\n    <div class=\'emboss red padding-inset-xxs-alt text-align-center tooltip\' data-tooltip-data=\'{{JSON getProblems()/}}\' data-tooltip-template=\'manage/views/reservations/problems_tooltip\'>\n      <strong>{{>getProblems().length}}<\/strong>\n    <\/div>\n    {{else ~renderAvailability && !anyProblems()}}\n    <div class=\'padding-inset-xxs-alt text-align-center\'>\n      <i class=\'fa fa-check\'><\/i>\n    <\/div>\n    {{/if}}\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-left-xxs padding-right-s\'>\n    <div class=\'multibutton\'>\n      <button class=\'button white text-ellipsis\' data-edit-lines data-ids=\'{{JSON [id]/}}\'>{{jed \"Change entry\"/}}<\/button>\n      <div class=\'dropdown-holder inline-block\'>\n        <div class=\'button white dropdown-toggle\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' href=\'{{>contract().url()}}\' target=\'_blank\'>\n              <i class=\'fa fa-file-alt\'><\/i>\n              {{jed \"Contract\"/}}\n              {{>contract().compact_id}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/reservations/tooltip", "<div class=\'min-width-l\'>\n  {{for groupedLinesByDateRange(true)}}\n  <div class=\'exclude-last-child padding-bottom-m margin-bottom-m no-last-child-margin\'>\n    <div class=\'row margin-bottom-s\'>\n      <div class=\'col1of2\'>\n        <span>\n          {{date start_date/}}\n          -\n          {{date end_date/}}\n        <\/span>\n      <\/div>\n      <div class=\'col1of2 text-align-right\'>\n        <strong>{{diffDatesInDays start_date end_date/}}<\/strong>\n      <\/div>\n    <\/div>\n    {{for reservations}}\n    <div class=\'row padding-top-xs\'>\n      <div class=\'col1of8 text-align-center\'>\n        <div class=\'paragraph-s line-height-s\'>\n          {{if ~quantity}}\n          {{>~quantity}}\n          {{else subreservations}}\n          {{sum subreservations \"quantity\"/}}\n          {{else}}\n          {{>quantity}}\n          {{/if}}\n        <\/div>\n      <\/div>\n      <div class=\'col7of8\'>\n        <div class=\'paragraph-s line-height-s text-ellipsis width-full padding-right-s\'>\n          <strong>{{>model().name()}}<\/strong>\n        <\/div>\n      <\/div>\n    <\/div>\n    {{/for}}\n  <\/div>\n  {{/for}}\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/software/line", "<div class=\'line row focus-hover-thin\' data-id=\'{{>id}}\' data-is_package=\'{{>is_package}}\' data-type=\'model\'>\n  <div class=\'col1of10 line-col text-align-center no-padding\'>\n    <div class=\'table\'>\n      <div class=\'table-row\'>\n        <div class=\'table-cell vertical-align-middle\'>\n          <img class=\'max-width-xxs max-height-xxs\' src=\'/models/{{>id}}/image_thumb\'>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col4of10 line-col text-align-left\'>\n    {{if is_package}}\n    <div class=\'grey-text\'>{{jed \'Package\'/}}<\/div>\n    {{/if}}\n    <strong class=\'test-fix-timeline\'>\n      {{> name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col3of10 line-col text-align-center\'>\n    <span title=\'{{jed \'in stock\'/}}\'>{{> availability().in_stock}}<\/span>\n    /\n    <span title=\'{{jed \'rentable\'/}}\'>{{> availability().total_rentable}}<\/span>\n  <\/div>\n  <div class=\'col2of8 line-col line-actions padding-right-xs\'>\n    <div class=\'multibutton width-full text-align-right\'>\n      <a class=\'button white text-ellipsis col4of5 negative-margin-right-xxs\' href=\'{{>url(\'edit\')}}\' title=\'{{jed \'Edit Software\'/}}\'>\n        {{jed \"Edit Software\"/}}\n      <\/a>\n      <div class=\'dropdown-holder inline-block col1of5\'>\n        <div class=\'button white dropdown-toggle width-full no-padding text-align-center\'>\n          <div class=\'arrow down\'><\/div>\n        <\/div>\n        <ul class=\'dropdown right\'>\n          <li>\n            <a class=\'dropdown-item\' data-model-id=\'{{>id}}\' data-open-time-line>\n              <i class=\'fa fa-align-left\'><\/i>\n              {{jed \"Timeline\"/}}\n            <\/a>\n          <\/li>\n        <\/ul>\n      <\/div>\n    <\/div>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function() {
