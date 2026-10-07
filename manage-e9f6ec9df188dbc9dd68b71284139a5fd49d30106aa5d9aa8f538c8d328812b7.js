@@ -2816,27 +2816,9 @@
     };
 
     ManageBookingCalendar.prototype.getGroupIds = function() {
-      var value;
-      value = this.partitionSelector_el.find("option:selected").data("value");
-      if (value.constructor === Array) {
-        return value.map((function(_this) {
-          return function(v) {
-            if (v.indexOf('[') > -1) {
-              return v.replace('[', '').replace(']', '');
-            } else {
-              return v;
-            }
-          };
-        })(this));
-      } else if (typeof value === 'string') {
-        if (value.indexOf('[') > -1) {
-          return [value.replace('[', '').replace(']', '')];
-        } else {
-          return [value];
-        }
-      } else {
-        return [value];
-      }
+      return this.partitionSelector_el.find("option:selected").attr("data-value").replace(/[\[\]\s]/g, '').split(',').filter(function(id) {
+        return id.length;
+      });
     };
 
     ManageBookingCalendar.prototype.setDayElement = function(date, dayElement, holidays) {
@@ -4792,7 +4774,7 @@
         currentUserRole: App.User.current.role,
         currentInventoryPool: App.InventoryPool.current
       };
-      this.pagination = new App.ListPaginationController({
+      this.pagination = new App.OrdersPaginationController({
         el: this.list,
         fetch: this._fetch
       });
@@ -4801,6 +4783,7 @@
 
     SearchResultsController.prototype.reset = function() {
       this.records = {};
+      this.finished = false;
       this.list.html(App.Render("manage/views/lists/loading"));
       return this._fetch(1, this.list);
     };
@@ -4809,7 +4792,7 @@
       var callback;
       callback = _.after(2, (function(_this) {
         return function() {
-          return _this.render(target, _this.records[page], page, _this.additionalData);
+          return _this.render(target, _this.records[page], page);
         };
       })(this));
       return this.fetch(page, target, callback).done((function(_this) {
@@ -4826,19 +4809,27 @@
             return results;
           }).call(_this);
           _this.records[page] = records;
+          if (data.length === 0) {
+            _this.finished = true;
+          }
           return callback();
         };
       })(this));
     };
 
-    SearchResultsController.prototype.render = function(target, data, page, additionalData) {
+    SearchResultsController.prototype.render = function(target, data, page) {
+      var nextPage;
       if (page === 1 && ((data == null) || data.length === 0)) {
-        return target.html(App.Render("manage/views/lists/no_results"));
-      } else {
-        target.html(App.Render(this.templatePath, data, additionalData));
-        if (page === 1) {
-          return this.pagination.renderPlaceholders();
-        }
+        target.html(App.Render("manage/views/lists/no_results"));
+        return;
+      }
+      target.removeClass("loading-page");
+      target.html(App.Render(this.templatePath, data, this.additionalData));
+      if (!this.finished && this.el.find(".loading-page").length === 0) {
+        nextPage = page + 1;
+        return this.list.append(App.Render("manage/views/lists/loading_page", nextPage, {
+          page: nextPage
+        }));
       }
     };
 
@@ -4903,6 +4894,7 @@
         data: $.param({
           search_term: this.searchTerm,
           global_contracts_search: true,
+          disable_total_count: true,
           page: page,
           status: ["open", "closed"]
         })
@@ -5017,7 +5009,8 @@
           search_term: this.searchTerm,
           type: this.type,
           page: page,
-          current_inventory_pool: false
+          current_inventory_pool: false,
+          disable_total_count: true
         })
       });
     };
@@ -5119,7 +5112,8 @@
         data: $.param({
           search_term: this.searchTerm,
           type: this.type,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       });
     };
@@ -5192,7 +5186,8 @@
       return App.Option.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       });
     };
@@ -5263,6 +5258,7 @@
         data: $.param({
           page: page,
           search_term: this.searchTerm,
+          disable_total_count: true,
           status: ["approved", "submitted", "rejected"]
         })
       });
@@ -5381,7 +5377,8 @@
       return App.User.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       }).done((function(_this) {
         return function(data) {

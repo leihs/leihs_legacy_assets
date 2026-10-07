@@ -4757,6 +4757,215 @@
     extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
 
+  window.App.OrdersPaginationController = (function(superClass) {
+    extend(OrdersPaginationController, superClass);
+
+    function OrdersPaginationController() {
+      this.inview = bind(this.inview, this);
+      this.set = bind(this.set, this);
+      return OrdersPaginationController.__super__.constructor.apply(this, arguments);
+    }
+
+    OrdersPaginationController.prototype.events = {
+      "inview .page:not(.fetched)": "inview"
+    };
+
+    OrdersPaginationController.prototype.set = function(data) {
+      return this.perPage = data.per_page;
+    };
+
+    OrdersPaginationController.prototype.inview = function(e) {
+      var target;
+      target = $(e.currentTarget);
+      target.addClass("fetched");
+      return this.fetch(target.data("page"), target);
+    };
+
+    return OrdersPaginationController;
+
+  })(Spine.Controller);
+
+}).call(this);
+(function() {
+  var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty;
+
+  window.App.SearchResultsContractsController = (function(superClass) {
+    extend(SearchResultsContractsController, superClass);
+
+    SearchResultsContractsController.prototype.elements = {
+      ".list-of-lines": "list"
+    };
+
+    SearchResultsContractsController.prototype.templatePath = "manage/views/contracts/line";
+
+    function SearchResultsContractsController() {
+      this.render = bind(this.render, this);
+      this.fetchReservations = bind(this.fetchReservations, this);
+      this.fetchUsers = bind(this.fetchUsers, this);
+      this.fetchContracts = bind(this.fetchContracts, this);
+      this.fetch = bind(this.fetch, this);
+      this.reset = bind(this.reset, this);
+      SearchResultsContractsController.__super__.constructor.apply(this, arguments);
+      this.additionalData = {
+        accessRight: App.AccessRight,
+        currentUserRole: App.User.current.role,
+        currentInventoryPool: App.InventoryPool.current
+      };
+      this.pagination = new App.OrdersPaginationController({
+        el: this.list,
+        fetch: this.fetch
+      });
+      new App.LinesCellTooltipController({
+        el: this.el
+      });
+      new App.UserCellTooltipController({
+        el: this.el
+      });
+      new App.TakeBacksSendReminderController({
+        el: this.el
+      });
+      this.reset();
+    }
+
+    SearchResultsContractsController.prototype.reset = function() {
+      this.contracts = {};
+      this.finished = false;
+      this.list.html(App.Render("manage/views/lists/loading"));
+      return this.fetch(1, this.list);
+    };
+
+    SearchResultsContractsController.prototype.fetch = function(page, target) {
+      return this.fetchContracts(page).done((function(_this) {
+        return function() {
+          return _this.fetchUsers(page).done(function() {
+            return _this.fetchReservations(page, function() {
+              if (_this.contracts[page] != null) {
+                return _this.render(target, _this.contracts[page], page);
+              }
+            });
+          });
+        };
+      })(this));
+    };
+
+    SearchResultsContractsController.prototype.fetchContracts = function(page) {
+      return App.Contract.ajaxFetch({
+        data: $.param({
+          search_term: this.searchTerm,
+          global_contracts_search: true,
+          disable_total_count: true,
+          page: page,
+          status: ["open", "closed"]
+        })
+      }).done((function(_this) {
+        return function(data, status, xhr) {
+          var datum;
+          _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
+          if (data.length === 0) {
+            _this.finished = true;
+          }
+          return _this.contracts[page] = (function() {
+            var i, len, results;
+            results = [];
+            for (i = 0, len = data.length; i < len; i++) {
+              datum = data[i];
+              results.push(App.Contract.find(datum.id));
+            }
+            return results;
+          })();
+        };
+      })(this));
+    };
+
+    SearchResultsContractsController.prototype.fetchUsers = function(page) {
+      var ids;
+      ids = _.filter(_.map(this.contracts[page], function(c) {
+        return c.user_id;
+      }), function(id) {
+        return App.User.exists(id) == null;
+      });
+      if (!ids.length) {
+        return {
+          done: (function(_this) {
+            return function(c) {
+              return c();
+            };
+          })(this)
+        };
+      }
+      return App.User.ajaxFetch({
+        data: $.param({
+          ids: _.uniq(ids),
+          all: true,
+          paginate: false
+        })
+      }).done((function(_this) {
+        return function(data) {
+          var datum, users;
+          users = (function() {
+            var i, len, results;
+            results = [];
+            for (i = 0, len = data.length; i < len; i++) {
+              datum = data[i];
+              results.push(App.User.find(datum.id));
+            }
+            return results;
+          })();
+          return App.User.fetchDelegators(users);
+        };
+      })(this));
+    };
+
+    SearchResultsContractsController.prototype.fetchReservations = function(page, callback) {
+      var done, ids;
+      ids = _.map(this.contracts[page], function(c) {
+        return c.id;
+      });
+      if (!ids.length) {
+        callback();
+        return;
+      }
+      done = _.after(Math.ceil(ids.length / 50), callback);
+      return _(ids).each_slice(50, (function(_this) {
+        return function(slice) {
+          return App.Reservation.ajaxFetch({
+            data: $.param({
+              contract_ids: slice,
+              paginate: false
+            })
+          }).done(done);
+        };
+      })(this));
+    };
+
+    SearchResultsContractsController.prototype.render = function(target, data, page) {
+      var nextPage;
+      if (page === 1 && ((data == null) || data.length === 0)) {
+        target.html(App.Render("manage/views/lists/no_results"));
+        return;
+      }
+      target.removeClass("loading-page");
+      target.html(App.Render(this.templatePath, data, this.additionalData));
+      if (!this.finished && this.el.find(".loading-page").length === 0) {
+        nextPage = page + 1;
+        return this.list.append(App.Render("manage/views/lists/loading_page", nextPage, {
+          page: nextPage
+        }));
+      }
+    };
+
+    return SearchResultsContractsController;
+
+  })(Spine.Controller);
+
+}).call(this);
+(function() {
+  var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty;
+
   window.App.SearchResultsController = (function(superClass) {
     extend(SearchResultsController, superClass);
 
@@ -4827,127 +5036,6 @@
     return SearchResultsController;
 
   })(Spine.Controller);
-
-}).call(this);
-(function() {
-  var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
-    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  window.App.SearchResultsContractsController = (function(superClass) {
-    extend(SearchResultsContractsController, superClass);
-
-    SearchResultsContractsController.prototype.model = "Contract";
-
-    SearchResultsContractsController.prototype.templatePath = "manage/views/contracts/line";
-
-    function SearchResultsContractsController() {
-      this.fetchReservations = bind(this.fetchReservations, this);
-      this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetchContracts = bind(this.fetchContracts, this);
-      this.fetch = bind(this.fetch, this);
-      SearchResultsContractsController.__super__.constructor.apply(this, arguments);
-      new App.LinesCellTooltipController({
-        el: this.el
-      });
-      new App.UserCellTooltipController({
-        el: this.el
-      });
-      new App.TakeBacksSendReminderController({
-        el: this.el
-      });
-    }
-
-    SearchResultsContractsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchContracts(page).done((function(_this) {
-        return function(data) {
-          var contracts, datum;
-          contracts = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Contract.find(datum.id));
-            }
-            return results;
-          })();
-          return _this.fetchUsers(contracts).done(function() {
-            return _this.fetchReservations(contracts).done(function() {
-              return callback();
-            });
-          });
-        };
-      })(this));
-    };
-
-    SearchResultsContractsController.prototype.fetchContracts = function(page) {
-      return App.Contract.ajaxFetch({
-        data: $.param({
-          search_term: this.searchTerm,
-          global_contracts_search: true,
-          page: page,
-          status: ["open", "closed"]
-        })
-      });
-    };
-
-    SearchResultsContractsController.prototype.fetchUsers = function(contracts) {
-      var ids;
-      ids = _.uniq(_.map(contracts, function(r) {
-        return r.user_id;
-      }));
-      if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
-      }
-      return App.User.ajaxFetch({
-        data: $.param({
-          ids: ids,
-          all: true,
-          paginate: false
-        })
-      }).done((function(_this) {
-        return function(data) {
-          var datum, users;
-          users = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.User.find(datum.id));
-            }
-            return results;
-          })();
-          return App.User.fetchDelegators(users);
-        };
-      })(this));
-    };
-
-    SearchResultsContractsController.prototype.fetchReservations = function(contracts) {
-      var ids;
-      ids = _.flatten(_.map(contracts, function(r) {
-        return r.id;
-      }));
-      if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
-      }
-      return App.Reservation.ajaxFetch({
-        data: $.param({
-          contract_ids: ids
-        })
-      });
-    };
-
-    return SearchResultsContractsController;
-
-  })(App.SearchResultsController);
 
 }).call(this);
 (function() {
@@ -12034,40 +12122,6 @@
     };
 
     return ListTabsController;
-
-  })(Spine.Controller);
-
-}).call(this);
-(function() {
-  var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
-    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  window.App.OrdersPaginationController = (function(superClass) {
-    extend(OrdersPaginationController, superClass);
-
-    function OrdersPaginationController() {
-      this.inview = bind(this.inview, this);
-      this.set = bind(this.set, this);
-      return OrdersPaginationController.__super__.constructor.apply(this, arguments);
-    }
-
-    OrdersPaginationController.prototype.events = {
-      "inview .page:not(.fetched)": "inview"
-    };
-
-    OrdersPaginationController.prototype.set = function(data) {
-      return this.perPage = data.per_page;
-    };
-
-    OrdersPaginationController.prototype.inview = function(e) {
-      var target;
-      target = $(e.currentTarget);
-      target.addClass("fetched");
-      return this.fetch(target.data("page"), target);
-    };
-
-    return OrdersPaginationController;
 
   })(Spine.Controller);
 
