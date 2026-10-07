@@ -663,25 +663,27 @@
 
 }).call(this);
 /*
- * jQuery postMessage Transport Plugin 1.1.1
+ * jQuery postMessage Transport Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2011, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  */
 
-/*jslint unparam: true, nomen: true */
-/*global define, window, document */
+/* global define, require, window, document */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
         define(['jquery'], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(require('jquery'));
     } else {
         // Browser globals:
         factory(window.jQuery);
@@ -727,6 +729,12 @@
                 loc = $('<a>').prop('href', options.postMessage)[0],
                 target = loc.protocol + '//' + loc.host,
                 xhrUpload = options.xhr().upload;
+            // IE always includes the port for the host property of a link
+            // element, but not in the location.host or origin property for the
+            // default http port 80 and https port 443, so we strip it:
+            if (/^(http:\/\/.+:80)|(https:\/\/.+:443)$/.test(target)) {
+              target = target.replace(/:(80|443)$/, '');
+            }
             return {
                 send: function (_, completeCallback) {
                     counter += 1;
@@ -782,28 +790,30 @@
 
 }));
 /*
- * jQuery XDomainRequest Transport Plugin 1.1.3
+ * jQuery XDomainRequest Transport Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2011, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  *
  * Based on Julian Aubourg's ajaxHooks xdr.js:
  * https://github.com/jaubourg/ajaxHooks/
  */
 
-/*jslint unparam: true */
-/*global define, window, XDomainRequest */
+/* global define, require, window, XDomainRequest */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
         define(['jquery'], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(require('jquery'));
     } else {
         // Browser globals:
         factory(window.jQuery);
@@ -870,28 +880,34 @@
     }
 }));
 /*
- * jQuery File Upload Plugin 5.37.0
+ * jQuery File Upload Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2010, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  */
 
-/*jslint nomen: true, unparam: true, regexp: true */
-/*global define, window, document, location, File, Blob, FormData */
+/* jshint nomen:false */
+/* global define, require, window, document, location, Blob, FormData */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
         define([
             'jquery',
-            'jquery.ui.widget'
+            'jquery-ui/ui/widget'
         ], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(
+            require('jquery'),
+            require('./vendor/jquery.ui.widget')
+        );
     } else {
         // Browser globals:
         factory(window.jQuery);
@@ -909,7 +925,7 @@
             '|(Kindle/(1\\.0|2\\.[05]|3\\.0))'
     ).test(window.navigator.userAgent) ||
         // Feature detection for all other devices:
-        $('<input type="file">').prop('disabled'));
+        $('<input type="file"/>').prop('disabled'));
 
     // The FileReader API is not actually used, but works as feature detection,
     // as some Safari versions (5?) support XHR file uploads via the FormData API,
@@ -922,6 +938,25 @@
     // Detect support for Blob slicing (required for chunked uploads):
     $.support.blobSlice = window.Blob && (Blob.prototype.slice ||
         Blob.prototype.webkitSlice || Blob.prototype.mozSlice);
+
+    // Helper function to create drag handlers for dragover/dragenter/dragleave:
+    function getDragHandler(type) {
+        var isDragOver = type === 'dragover';
+        return function (e) {
+            e.dataTransfer = e.originalEvent && e.originalEvent.dataTransfer;
+            var dataTransfer = e.dataTransfer;
+            if (dataTransfer && $.inArray('Files', dataTransfer.types) !== -1 &&
+                    this._trigger(
+                        type,
+                        $.Event(type, {delegatedEvent: e})
+                    ) !== false) {
+                e.preventDefault();
+                if (isDragOver) {
+                    dataTransfer.dropEffect = 'copy';
+                }
+            }
+        };
+    }
 
     // The fileupload widget listens for change events on file input fields defined
     // via fileInput setting and paste or drop events of the given dropZone.
@@ -937,9 +972,9 @@
             // The drop target element(s), by the default the complete document.
             // Set to null to disable drag & drop support:
             dropZone: $(document),
-            // The paste target element(s), by the default the complete document.
-            // Set to null to disable paste support:
-            pasteZone: $(document),
+            // The paste target element(s), by the default undefined.
+            // Set to a DOM node or jQuery object to enable file pasting:
+            pasteZone: undefined,
             // The file input field(s), that are listened to for change events.
             // If undefined, it is set to the file input fields inside
             // of the widget element on plugin initialization.
@@ -962,6 +997,14 @@
             // To limit the number of files uploaded with one XHR request,
             // set the following option to an integer greater than 0:
             limitMultiFileUploads: undefined,
+            // The following option limits the number of files uploaded with one
+            // XHR request to keep the request size under or equal to the defined
+            // limit in bytes:
+            limitMultiFileUploadSize: undefined,
+            // Multipart file uploads add a number of bytes to each uploaded file,
+            // therefore the following option adds an overhead for each file used
+            // in the limitMultiFileUploadSize configuration:
+            limitMultiFileUploadSizeOverhead: 512,
             // Set the following option to true to issue all file upload requests
             // in a sequential order:
             sequentialUploads: false,
@@ -1116,7 +1159,8 @@
             // The following are jQuery ajax settings required for the file uploads:
             processData: false,
             contentType: false,
-            cache: false
+            cache: false,
+            timeout: 0
         },
 
         // A list of options that require reinitializing event listeners and/or
@@ -1157,7 +1201,7 @@
 
         _getFormData: function (options) {
             var formData;
-            if (typeof options.formData === 'function') {
+            if ($.type(options.formData) === 'function') {
                 return options.formData(options.form);
             }
             if ($.isArray(options.formData)) {
@@ -1283,17 +1327,18 @@
                 file = options.files[0],
                 // Ignore non-multipart setting if not supported:
                 multipart = options.multipart || !$.support.xhrFileUpload,
-                paramName = options.paramName[0];
+                paramName = $.type(options.paramName) === 'array' ?
+                    options.paramName[0] : options.paramName;
             options.headers = $.extend({}, options.headers);
             if (options.contentRange) {
                 options.headers['Content-Range'] = options.contentRange;
             }
             if (!multipart || options.blob || !this._isInstanceOf('File', file)) {
                 options.headers['Content-Disposition'] = 'attachment; filename="' +
-                    encodeURI(file.name) + '"';
+                    encodeURI(file.uploadName || file.name) + '"';
             }
             if (!multipart) {
-                options.contentType = file.type;
+                options.contentType = file.type || 'application/octet-stream';
                 options.data = options.blob || file;
             } else if ($.support.xhrFormDataFileUpload) {
                 if (options.postMessage) {
@@ -1310,7 +1355,8 @@
                     } else {
                         $.each(options.files, function (index, file) {
                             formData.push({
-                                name: options.paramName[index] || paramName,
+                                name: ($.type(options.paramName) === 'array' &&
+                                    options.paramName[index]) || paramName,
                                 value: file
                             });
                         });
@@ -1325,7 +1371,11 @@
                         });
                     }
                     if (options.blob) {
-                        formData.append(paramName, options.blob, file.name);
+                        formData.append(
+                            paramName,
+                            options.blob,
+                            file.uploadName || file.name
+                        );
                     } else {
                         $.each(options.files, function (index, file) {
                             // This check allows the tests to run with
@@ -1333,7 +1383,8 @@
                             if (that._isInstanceOf('File', file) ||
                                     that._isInstanceOf('Blob', file)) {
                                 formData.append(
-                                    options.paramName[index] || paramName,
+                                    ($.type(options.paramName) === 'array' &&
+                                        options.paramName[index]) || paramName,
                                     file,
                                     file.uploadName || file.name
                                 );
@@ -1487,7 +1538,7 @@
             data.process = function (resolveFunc, rejectFunc) {
                 if (resolveFunc || rejectFunc) {
                     data._processQueue = this._processQueue =
-                        (this._processQueue || getPromise([this])).pipe(
+                        (this._processQueue || getPromise([this])).then(
                             function () {
                                 if (data.errorThrown) {
                                     return $.Deferred()
@@ -1495,7 +1546,7 @@
                                 }
                                 return getPromise(arguments);
                             }
-                        ).pipe(resolveFunc, rejectFunc);
+                        ).then(resolveFunc, rejectFunc);
                 }
                 return this._processQueue || getPromise([this]);
             };
@@ -1515,7 +1566,8 @@
                     return this.jqXHR.abort();
                 }
                 this.errorThrown = 'abort';
-                return that._getXHRPromise();
+                that._trigger('fail', null, this);
+                return that._getXHRPromise(false);
             };
             data.state = function () {
                 if (this.jqXHR) {
@@ -1564,7 +1616,7 @@
                 promise = dfd.promise(),
                 jqXHR,
                 upload;
-            if (!(this._isXHRUpload(options) && slice && (ub || mcs < fs)) ||
+            if (!(this._isXHRUpload(options) && slice && (ub || ($.type(mcs) === 'function' ? mcs(options) : mcs) < fs)) ||
                     options.data) {
                 return false;
             }
@@ -1587,7 +1639,7 @@
                 o.blob = slice.call(
                     file,
                     ub,
-                    ub + mcs,
+                    ub + ($.type(mcs) === 'function' ? mcs(o) : mcs),
                     file.type
                 );
                 // Store the current chunk size, as the blob itself
@@ -1779,9 +1831,9 @@
                 if (this.options.limitConcurrentUploads > 1) {
                     slot = $.Deferred();
                     this._slots.push(slot);
-                    pipe = slot.pipe(send);
+                    pipe = slot.then(send);
                 } else {
-                    this._sequence = this._sequence.pipe(send, send);
+                    this._sequence = this._sequence.then(send, send);
                     pipe = this._sequence;
                 }
                 // Return the piped Promise object, enhanced with an abort method,
@@ -1806,32 +1858,62 @@
             var that = this,
                 result = true,
                 options = $.extend({}, this.options, data),
+                files = data.files,
+                filesLength = files.length,
                 limit = options.limitMultiFileUploads,
+                limitSize = options.limitMultiFileUploadSize,
+                overhead = options.limitMultiFileUploadSizeOverhead,
+                batchSize = 0,
                 paramName = this._getParamName(options),
                 paramNameSet,
                 paramNameSlice,
                 fileSet,
-                i;
-            if (!(options.singleFileUploads || limit) ||
+                i,
+                j = 0;
+            if (!filesLength) {
+                return false;
+            }
+            if (limitSize && files[0].size === undefined) {
+                limitSize = undefined;
+            }
+            if (!(options.singleFileUploads || limit || limitSize) ||
                     !this._isXHRUpload(options)) {
-                fileSet = [data.files];
+                fileSet = [files];
                 paramNameSet = [paramName];
-            } else if (!options.singleFileUploads && limit) {
+            } else if (!(options.singleFileUploads || limitSize) && limit) {
                 fileSet = [];
                 paramNameSet = [];
-                for (i = 0; i < data.files.length; i += limit) {
-                    fileSet.push(data.files.slice(i, i + limit));
+                for (i = 0; i < filesLength; i += limit) {
+                    fileSet.push(files.slice(i, i + limit));
                     paramNameSlice = paramName.slice(i, i + limit);
                     if (!paramNameSlice.length) {
                         paramNameSlice = paramName;
                     }
                     paramNameSet.push(paramNameSlice);
                 }
+            } else if (!options.singleFileUploads && limitSize) {
+                fileSet = [];
+                paramNameSet = [];
+                for (i = 0; i < filesLength; i = i + 1) {
+                    batchSize += files[i].size + overhead;
+                    if (i + 1 === filesLength ||
+                            ((batchSize + files[i + 1].size + overhead) > limitSize) ||
+                            (limit && i + 1 - j >= limit)) {
+                        fileSet.push(files.slice(j, i + 1));
+                        paramNameSlice = paramName.slice(j, i + 1);
+                        if (!paramNameSlice.length) {
+                            paramNameSlice = paramName;
+                        }
+                        paramNameSet.push(paramNameSlice);
+                        j = i + 1;
+                        batchSize = 0;
+                    }
+                }
             } else {
                 paramNameSet = paramName;
             }
-            data.originalFiles = data.files;
-            $.each(fileSet || data.files, function (index, element) {
+            data.originalFiles = files;
+            $.each(fileSet || files, function (index, element) {
                 var newData = $.extend({}, data);
                 newData.files = fileSet ? element : [element];
                 newData.paramName = paramNameSet[index];
@@ -1848,12 +1930,21 @@
             return result;
         },
 
-        _replaceFileInput: function (input) {
-            var inputClone = input.clone(true);
+        _replaceFileInput: function (data) {
+            var input = data.fileInput,
+                inputClone = input.clone(true),
+                restoreFocus = input.is(document.activeElement);
+            // Add a reference for the new cloned file input to the data argument:
+            data.fileInputClone = inputClone;
             $('<form></form>').append(inputClone)[0].reset();
             // Detaching allows to insert the fileInput on another form
             // without loosing the file input value:
             input.after(inputClone).detach();
+            // If the fileInput had focus before it was detached,
+            // restore focus to the inputClone.
+            if (restoreFocus) {
+                inputClone.focus();
+            }
             // Avoid memory leaks with the detached file input:
             $.cleanData(input.unbind('remove'));
             // Replace the original file input element in the fileInput
@@ -1875,6 +1966,8 @@
         _handleFileTreeEntry: function (entry, path) {
             var that = this,
                 dfd = $.Deferred(),
+                entries = [],
+                dirReader,
                 errorHandler = function (e) {
                     if (e && !e.entry) {
                         e.entry = entry;
@@ -1885,7 +1978,24 @@
                     // to be returned together in one set:
                     dfd.resolve([e]);
                 },
-                dirReader;
+                successHandler = function (entries) {
+                    that._handleFileTreeEntries(
+                        entries,
+                        path + entry.name + '/'
+                    ).done(function (files) {
+                        dfd.resolve(files);
+                    }).fail(errorHandler);
+                },
+                readEntries = function () {
+                    dirReader.readEntries(function (results) {
+                        if (!results.length) {
+                            successHandler(entries);
+                        } else {
+                            entries = entries.concat(results);
+                            readEntries();
+                        }
+                    }, errorHandler);
+                };
             path = path || '';
             if (entry.isFile) {
                 if (entry._file) {
@@ -1900,16 +2010,9 @@
                 }
             } else if (entry.isDirectory) {
                 dirReader = entry.createReader();
-                dirReader.readEntries(function (entries) {
-                    that._handleFileTreeEntries(
-                        entries,
-                        path + entry.name + '/'
-                    ).done(function (files) {
-                        dfd.resolve(files);
-                    }).fail(errorHandler);
-                }, errorHandler);
+                readEntries();
             } else {
-                // Return an empy list for file system items
+                // Return an empty list for file system items
                 // other than files or directories:
                 dfd.resolve([]);
             }
@@ -1923,7 +2026,7 @@
                 $.map(entries, function (entry) {
                     return that._handleFileTreeEntry(entry, path);
                 })
-            ).pipe(function () {
+            ).then(function () {
                 return Array.prototype.concat.apply(
                     [],
                     arguments
@@ -1992,7 +2095,7 @@
             return $.when.apply(
                 $,
                 $.map(fileInput, this._getSingleFileInputFiles)
-            ).pipe(function () {
+            ).then(function () {
                 return Array.prototype.concat.apply(
                     [],
                     arguments
@@ -2009,7 +2112,7 @@
             this._getFileInputFiles(data.fileInput).always(function (files) {
                 data.files = files;
                 if (that.options.replaceFileInput) {
-                    that._replaceFileInput(data.fileInput);
+                    that._replaceFileInput(data);
                 }
                 if (that._trigger(
                         'change',
@@ -2062,24 +2165,21 @@
             }
         },
 
-        _onDragOver: function (e) {
-            e.dataTransfer = e.originalEvent && e.originalEvent.dataTransfer;
-            var dataTransfer = e.dataTransfer;
-            if (dataTransfer && $.inArray('Files', dataTransfer.types) !== -1 &&
-                    this._trigger(
-                        'dragover',
-                        $.Event('dragover', {delegatedEvent: e})
-                    ) !== false) {
-                e.preventDefault();
-                dataTransfer.dropEffect = 'copy';
-            }
-        },
+        _onDragOver: getDragHandler('dragover'),
+
+        _onDragEnter: getDragHandler('dragenter'),
+
+        _onDragLeave: getDragHandler('dragleave'),
 
         _initEventHandlers: function () {
             if (this._isXHRUpload(this.options)) {
                 this._on(this.options.dropZone, {
                     dragover: this._onDragOver,
-                    drop: this._onDrop
+                    drop: this._onDrop,
+                    // event.preventDefault() on dragenter is required for IE10+:
+                    dragenter: this._onDragEnter,
+                    // dragleave is not required, but added for completeness:
+                    dragleave: this._onDragLeave
                 });
                 this._on(this.options.pasteZone, {
                     paste: this._onPaste
@@ -2093,9 +2193,13 @@
         },
 
         _destroyEventHandlers: function () {
-            this._off(this.options.dropZone, 'dragover drop');
+            this._off(this.options.dropZone, 'dragenter dragleave dragover drop');
             this._off(this.options.pasteZone, 'paste');
             this._off(this.options.fileInput, 'change');
+        },
+
+        _destroy: function () {
+            this._destroyEventHandlers();
         },
 
         _setOption: function (key, value) {
@@ -2140,15 +2244,25 @@
 
         _initDataAttributes: function () {
             var that = this,
-                options = this.options;
+                options = this.options,
+                data = this.element.data();
             // Initialize options set via HTML5 data-attributes:
             $.each(
-                $(this.element[0].cloneNode(false)).data(),
-                function (key, value) {
-                    if (that._isRegExpOption(key, value)) {
-                        value = that._getRegExp(value);
+                this.element[0].attributes,
+                function (index, attr) {
+                    var key = attr.name.toLowerCase(),
+                        value;
+                    if (/^data-/.test(key)) {
+                        // Convert hyphen-ated key to camelCase:
+                        key = key.slice(5).replace(/-[a-z]/g, function (str) {
+                            return str.charAt(1).toUpperCase();
+                        });
+                        value = data[key];
+                        if (that._isRegExpOption(key, value)) {
+                            value = that._getRegExp(value);
+                        }
+                        options[key] = value;
                     }
-                    options[key] = value;
                 }
             );
         },
@@ -2228,7 +2342,8 @@
                                 return;
                             }
                             data.files = files;
-                            jqXHR = that._onSend(null, data).then(
+                            jqXHR = that._onSend(null, data);
+                            jqXHR.then(
                                 function (result, textStatus, jqXHR) {
                                     dfd.resolve(result, textStatus, jqXHR);
                                 },
@@ -2252,21 +2367,21 @@
 
 }));
 /*
- * jQuery File Upload Processing Plugin 1.3.0
+ * jQuery File Upload Processing Plugin
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2012, Sebastian Tschan
  * https://blueimp.net
  *
  * Licensed under the MIT license:
- * http://www.opensource.org/licenses/MIT
+ * https://opensource.org/licenses/MIT
  */
 
-/*jslint nomen: true, unparam: true */
-/*global define, window */
+/* jshint nomen:false */
+/* global define, require, window */
 
 
-(function (factory) {
+;(function (factory) {
     'use strict';
     if (typeof define === 'function' && define.amd) {
         // Register as an anonymous AMD module:
@@ -2274,6 +2389,12 @@
             'jquery',
             './jquery.fileupload'
         ], factory);
+    } else if (typeof exports === 'object') {
+        // Node/CommonJS:
+        factory(
+            require('jquery'),
+            require('./jquery.fileupload')
+        );
     } else {
         // Browser globals:
         factory(
@@ -2335,7 +2456,7 @@
                         settings
                     );
                 };
-                chain = chain.pipe(func, settings.always && func);
+                chain = chain.then(func, settings.always && func);
             });
             chain
                 .done(function () {
@@ -2402,7 +2523,7 @@
                         };
                     opts.index = index;
                     that._processing += 1;
-                    that._processingQueue = that._processingQueue.pipe(func, func)
+                    that._processingQueue = that._processingQueue.then(func, func)
                         .always(function () {
                             that._processing -= 1;
                             if (that._processing === 0) {
@@ -2695,27 +2816,9 @@
     };
 
     ManageBookingCalendar.prototype.getGroupIds = function() {
-      var value;
-      value = this.partitionSelector_el.find("option:selected").data("value");
-      if (value.constructor === Array) {
-        return value.map((function(_this) {
-          return function(v) {
-            if (v.indexOf('[') > -1) {
-              return v.replace('[', '').replace(']', '');
-            } else {
-              return v;
-            }
-          };
-        })(this));
-      } else if (typeof value === 'string') {
-        if (value.indexOf('[') > -1) {
-          return [value.replace('[', '').replace(']', '')];
-        } else {
-          return [value];
-        }
-      } else {
-        return [value];
-      }
+      return this.partitionSelector_el.find("option:selected").attr("data-value").replace(/[\[\]\s]/g, '').split(',').filter(function(id) {
+        return id.length;
+      });
     };
 
     ManageBookingCalendar.prototype.setDayElement = function(date, dayElement, holidays) {
@@ -3901,7 +4004,7 @@
       new App.UserCellTooltipController({
         el: this.el
       });
-      this.pagination = new App.OrdersPaginationController({
+      this.pagination = new App.OnDemandPaginationController({
         el: this.list,
         fetch: this.fetch
       });
@@ -3930,19 +4033,24 @@
     ContractsIndexController.prototype.reset = function() {
       this.contracts = {};
       this.finished = false;
-      this.list.html(App.Render("manage/views/lists/loading"));
-      this.fetch(1, this.list);
-      return this.pagination.page = 1;
+      this.list.html(App.Render("manage/views/lists/loading_page", 1, {
+        page: 1
+      }));
+      return this.pagination.loadPage(this.list.find(".loading-page"));
     };
 
     ContractsIndexController.prototype.fetch = function(page, target) {
-      return this.fetchContracts(page).done((function(_this) {
+      return this.fetchContracts(page).then((function(_this) {
         return function() {
-          return _this.fetchUsers(page).done(function() {
-            return _this.fetchReservations(page, function() {
-              return _this.render(target, _this.contracts[page], page);
-            });
-          });
+          return _this.fetchUsers(page);
+        };
+      })(this)).then((function(_this) {
+        return function() {
+          return _this.fetchReservations(page);
+        };
+      })(this)).then((function(_this) {
+        return function() {
+          return _this.render(target, _this.contracts[page], page);
         };
       })(this));
     };
@@ -3971,9 +4079,7 @@
         return function(data, status, xhr) {
           var contracts, datum;
           _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
-          if (data.length === 0) {
-            _this.finished = true;
-          }
+          _this.finished = data.length < _this.pagination.perPage;
           contracts = (function() {
             var i, len, results;
             results = [];
@@ -3988,24 +4094,22 @@
       })(this));
     };
 
-    ContractsIndexController.prototype.fetchReservations = function(page, callback) {
-      var done, ids;
+    ContractsIndexController.prototype.fetchReservations = function(page) {
+      var ids, requests;
       ids = _.map(this.contracts[page], function(o) {
         return o.id;
       });
-      if (!ids.length) {
-        callback();
-      }
-      done = _.after(Math.ceil(ids.length / 50), callback);
-      return _(ids).each_slice(50, (function(_this) {
+      requests = [];
+      _(ids).each_slice(50, (function(_this) {
         return function(slice) {
-          return App.Reservation.ajaxFetch({
+          return requests.push(App.Reservation.ajaxFetch({
             data: $.param({
               contract_ids: slice
             })
-          }).done(done);
+          }));
         };
       })(this));
+      return $.when.apply($, requests);
     };
 
     ContractsIndexController.prototype.fetchUsers = function(page) {
@@ -4016,13 +4120,7 @@
         return App.User.exists(id) == null;
       });
       if (!ids.length) {
-        return {
-          done: (function(_this) {
-            return function(c) {
-              return c();
-            };
-          })(this)
-        };
+        return $.when();
       }
       return App.User.ajaxFetch({
         data: $.param({
@@ -4047,17 +4145,13 @@
     };
 
     ContractsIndexController.prototype.render = function(target, data, page) {
-      var nextPage;
       target.removeClass('loading-page');
       target.html(App.Render("manage/views/contracts/line", data, {
         accessRight: App.AccessRight,
         currentUserRole: App.User.current.role
       }));
-      if (!this.finished && $('.loading-page').length === 0) {
-        nextPage = page + 1;
-        return this.list.append(App.Render("manage/views/lists/loading_page", nextPage, {
-          page: nextPage
-        }));
+      if (!this.finished) {
+        return this.pagination.appendNextPage(this.list, page);
       }
     };
 
@@ -4663,6 +4757,7 @@
 
     function SearchResultsController() {
       this.render = bind(this.render, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       this._fetch = bind(this._fetch, this);
       this.reset = bind(this.reset, this);
       SearchResultsController.__super__.constructor.apply(this, arguments);
@@ -4671,7 +4766,7 @@
         currentUserRole: App.User.current.role,
         currentInventoryPool: App.InventoryPool.current
       };
-      this.pagination = new App.ListPaginationController({
+      this.pagination = new App.OnDemandPaginationController({
         el: this.list,
         fetch: this._fetch
       });
@@ -4680,22 +4775,19 @@
 
     SearchResultsController.prototype.reset = function() {
       this.records = {};
-      this.list.html(App.Render("manage/views/lists/loading"));
-      return this._fetch(1, this.list);
+      this.finished = false;
+      this.list.html(App.Render("manage/views/lists/loading_page", 1, {
+        page: 1
+      }));
+      return this.pagination.loadPage(this.list.find(".loading-page"));
     };
 
     SearchResultsController.prototype._fetch = function(page, target) {
-      var callback;
-      callback = _.after(2, (function(_this) {
-        return function() {
-          return _this.render(target, _this.records[page], page, _this.additionalData);
-        };
-      })(this));
-      return this.fetch(page, target, callback).done((function(_this) {
+      return this.fetchRecords(page).then((function(_this) {
         return function(data, status, xhr) {
-          var datum, records;
+          var datum;
           _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
-          records = (function() {
+          _this.records[page] = (function() {
             var i, len, results;
             results = [];
             for (i = 0, len = data.length; i < len; i++) {
@@ -4704,20 +4796,29 @@
             }
             return results;
           }).call(_this);
-          _this.records[page] = records;
-          return callback();
+          _this.finished = data.length < _this.pagination.perPage;
+          return _this.fetchRelated(_this.records[page]);
+        };
+      })(this)).then((function(_this) {
+        return function() {
+          return _this.render(target, _this.records[page], page);
         };
       })(this));
     };
 
-    SearchResultsController.prototype.render = function(target, data, page, additionalData) {
+    SearchResultsController.prototype.fetchRelated = function() {
+      return $.when();
+    };
+
+    SearchResultsController.prototype.render = function(target, data, page) {
       if (page === 1 && ((data == null) || data.length === 0)) {
-        return target.html(App.Render("manage/views/lists/no_results"));
-      } else {
-        target.html(App.Render(this.templatePath, data, additionalData));
-        if (page === 1) {
-          return this.pagination.renderPlaceholders();
-        }
+        this.list.html(App.Render("manage/views/lists/no_results"));
+        return;
+      }
+      target.removeClass("loading-page");
+      target.html(App.Render(this.templatePath, data, this.additionalData));
+      if (!this.finished) {
+        return this.pagination.appendNextPage(this.list, page);
       }
     };
 
@@ -4741,8 +4842,8 @@
     function SearchResultsContractsController() {
       this.fetchReservations = bind(this.fetchReservations, this);
       this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetchContracts = bind(this.fetchContracts, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       SearchResultsContractsController.__super__.constructor.apply(this, arguments);
       new App.LinesCellTooltipController({
         el: this.el
@@ -4755,33 +4856,20 @@
       });
     }
 
-    SearchResultsContractsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchContracts(page).done((function(_this) {
-        return function(data) {
-          var contracts, datum;
-          contracts = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Contract.find(datum.id));
-            }
-            return results;
-          })();
-          return _this.fetchUsers(contracts).done(function() {
-            return _this.fetchReservations(contracts).done(function() {
-              return callback();
-            });
-          });
+    SearchResultsContractsController.prototype.fetchRelated = function(contracts) {
+      return this.fetchUsers(contracts).then((function(_this) {
+        return function() {
+          return _this.fetchReservations(contracts);
         };
       })(this));
     };
 
-    SearchResultsContractsController.prototype.fetchContracts = function(page) {
+    SearchResultsContractsController.prototype.fetchRecords = function(page) {
       return App.Contract.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
           global_contracts_search: true,
+          disable_total_count: true,
           page: page,
           status: ["open", "closed"]
         })
@@ -4794,11 +4882,7 @@
         return r.user_id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.User.ajaxFetch({
         data: $.param({
@@ -4829,11 +4913,7 @@
         return r.id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.Reservation.ajaxFetch({
         data: $.param({
@@ -4857,8 +4937,8 @@
 
     function SearchResultsItemsController() {
       this.fetchModels = bind(this.fetchModels, this);
-      this.fetchItems = bind(this.fetchItems, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       return SearchResultsItemsController.__super__.constructor.apply(this, arguments);
     }
 
@@ -4870,33 +4950,18 @@
 
     SearchResultsItemsController.prototype.type = "item";
 
-    SearchResultsItemsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchItems(page).done((function(_this) {
-        return function(data) {
-          var datum, items;
-          items = (function() {
-            var j, len, results;
-            results = [];
-            for (j = 0, len = data.length; j < len; j++) {
-              datum = data[j];
-              results.push(App[this.model].find(datum.id));
-            }
-            return results;
-          }).call(_this);
-          return _this.fetchModels(items).done(function() {
-            return callback();
-          });
-        };
-      })(this));
+    SearchResultsItemsController.prototype.fetchRelated = function(items) {
+      return this.fetchModels(items);
     };
 
-    SearchResultsItemsController.prototype.fetchItems = function(page) {
+    SearchResultsItemsController.prototype.fetchRecords = function(page) {
       return App[this.model].ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
           type: this.type,
           page: page,
-          current_inventory_pool: false
+          current_inventory_pool: false,
+          disable_total_count: true
         })
       });
     };
@@ -4907,11 +4972,7 @@
         return i.model_id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App[this.dependingOnModel].ajaxFetch({
         data: $.param({
@@ -4965,40 +5026,25 @@
 
     function SearchResultsModelsController() {
       this.fetchAvailability = bind(this.fetchAvailability, this);
-      this.fetchModels = bind(this.fetchModels, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       SearchResultsModelsController.__super__.constructor.apply(this, arguments);
       new App.TimeLineController({
         el: this.el
       });
     }
 
-    SearchResultsModelsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchModels(page).done((function(_this) {
-        return function(data) {
-          var datum, models;
-          models = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App[this.model].find(datum.id));
-            }
-            return results;
-          }).call(_this);
-          return _this.fetchAvailability(models).done(function() {
-            return callback();
-          });
-        };
-      })(this));
+    SearchResultsModelsController.prototype.fetchRelated = function(models) {
+      return this.fetchAvailability(models);
     };
 
-    SearchResultsModelsController.prototype.fetchModels = function(page) {
+    SearchResultsModelsController.prototype.fetchRecords = function(page) {
       return App[this.model].ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
           type: this.type,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       });
     };
@@ -5009,11 +5055,7 @@
         return m.id;
       });
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.Availability.ajaxFetch({
         url: App.Availability.url() + "/in_stock",
@@ -5041,37 +5083,19 @@
     SearchResultsOptionsController.prototype.templatePath = "manage/views/options/line";
 
     function SearchResultsOptionsController() {
-      this.fetchOptions = bind(this.fetchOptions, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
       SearchResultsOptionsController.__super__.constructor.apply(this, arguments);
       new App.TimeLineController({
         el: this.el
       });
     }
 
-    SearchResultsOptionsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchOptions(page).done((function(_this) {
-        return function(data) {
-          var datum, options;
-          options = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Option.find(datum.id));
-            }
-            return results;
-          })();
-          return callback();
-        };
-      })(this));
-    };
-
-    SearchResultsOptionsController.prototype.fetchOptions = function(page) {
+    SearchResultsOptionsController.prototype.fetchRecords = function(page) {
       return App.Option.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       });
     };
@@ -5096,8 +5120,8 @@
     function SearchResultsOrdersController() {
       this.fetchReservations = bind(this.fetchReservations, this);
       this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetchOrders = bind(this.fetchOrders, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       SearchResultsOrdersController.__super__.constructor.apply(this, arguments);
       new App.LinesCellTooltipController({
         el: this.el
@@ -5115,33 +5139,20 @@
       });
     }
 
-    SearchResultsOrdersController.prototype.fetch = function(page, target, callback) {
-      return this.fetchOrders(page).done((function(_this) {
-        return function(data) {
-          var datum, orders;
-          orders = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Order.find(datum.id));
-            }
-            return results;
-          })();
-          return _this.fetchUsers(orders).done(function() {
-            return _this.fetchReservations(orders).done(function() {
-              return callback();
-            });
-          });
+    SearchResultsOrdersController.prototype.fetchRelated = function(orders) {
+      return this.fetchUsers(orders).then((function(_this) {
+        return function() {
+          return _this.fetchReservations(orders);
         };
       })(this));
     };
 
-    SearchResultsOrdersController.prototype.fetchOrders = function(page) {
+    SearchResultsOrdersController.prototype.fetchRecords = function(page) {
       return App.Order.ajaxFetch({
         data: $.param({
           page: page,
           search_term: this.searchTerm,
+          disable_total_count: true,
           status: ["approved", "submitted", "rejected"]
         })
       });
@@ -5153,11 +5164,7 @@
         return r.user_id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.User.ajaxFetch({
         data: $.param({
@@ -5187,11 +5194,7 @@
         return r.id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.Reservation.ajaxFetch({
         data: $.param({
@@ -5240,27 +5243,19 @@
     SearchResultsUsersController.prototype.templatePath = "manage/views/users/search_result_line";
 
     function SearchResultsUsersController() {
-      this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
       SearchResultsUsersController.__super__.constructor.apply(this, arguments);
       new App.UserCellTooltipController({
         el: this.el
       });
     }
 
-    SearchResultsUsersController.prototype.fetch = function(page, target, callback) {
-      return this.fetchUsers(page).done((function(_this) {
-        return function() {
-          return callback();
-        };
-      })(this));
-    };
-
-    SearchResultsUsersController.prototype.fetchUsers = function(page) {
+    SearchResultsUsersController.prototype.fetchRecords = function(page) {
       return App.User.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       }).done((function(_this) {
         return function(data) {
@@ -9220,7 +9215,7 @@
         async: true,
         callback: this.orderRejected
       });
-      this.pagination = new App.OrdersPaginationController({
+      this.pagination = new App.OnDemandPaginationController({
         el: this.list,
         fetch: this.fetch
       });
@@ -9249,21 +9244,26 @@
     OrdersIndexController.prototype.reset = function() {
       this.orders = {};
       this.finished = false;
-      this.list.html(App.Render("manage/views/lists/loading"));
-      this.fetch(1, this.list);
-      return this.pagination.page = 1;
+      this.list.html(App.Render("manage/views/lists/loading_page", 1, {
+        page: 1
+      }));
+      return this.pagination.loadPage(this.list.find(".loading-page"));
     };
 
     OrdersIndexController.prototype.fetch = function(page, target) {
-      return this.fetchOrders(page).done((function(_this) {
+      return this.fetchOrders(page).then((function(_this) {
         return function() {
-          return _this.fetchUsers(page).done(function() {
-            return _this.fetchReservations(page, function() {
-              if (_this.orders[page]) {
-                return _this.render(target, _this.orders[page], page);
-              }
-            });
-          });
+          return _this.fetchUsers(page);
+        };
+      })(this)).then((function(_this) {
+        return function() {
+          return _this.fetchReservations(page);
+        };
+      })(this)).then((function(_this) {
+        return function() {
+          if (_this.orders[page]) {
+            return _this.render(target, _this.orders[page], page);
+          }
         };
       })(this));
     };
@@ -9293,9 +9293,7 @@
         return function(data, status, xhr) {
           var datum, orders;
           _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
-          if (data.length === 0) {
-            _this.finished = true;
-          }
+          _this.finished = data.length < _this.pagination.perPage;
           orders = (function() {
             var i, len, results;
             results = [];
@@ -9310,24 +9308,22 @@
       })(this));
     };
 
-    OrdersIndexController.prototype.fetchReservations = function(page, callback) {
-      var done, ids;
+    OrdersIndexController.prototype.fetchReservations = function(page) {
+      var ids, requests;
       ids = _.map(this.orders[page], function(o) {
         return o.id;
       });
-      if (!ids.length) {
-        callback();
-      }
-      done = _.after(Math.ceil(ids.length / 50), callback);
-      return _(ids).each_slice(50, (function(_this) {
+      requests = [];
+      _(ids).each_slice(50, (function(_this) {
         return function(slice) {
-          return App.Reservation.ajaxFetch({
+          return requests.push(App.Reservation.ajaxFetch({
             data: $.param({
               order_ids: slice
             })
-          }).done(done);
+          }));
         };
       })(this));
+      return $.when.apply($, requests);
     };
 
     OrdersIndexController.prototype.fetchUsers = function(page) {
@@ -9338,13 +9334,7 @@
         return App.User.exists(id) == null;
       });
       if (!ids.length) {
-        return {
-          done: (function(_this) {
-            return function(c) {
-              return c();
-            };
-          })(this)
-        };
+        return $.when();
       }
       return App.User.ajaxFetch({
         data: $.param({
@@ -9369,17 +9359,13 @@
     };
 
     OrdersIndexController.prototype.render = function(target, data, page) {
-      var nextPage;
       target.removeClass('loading-page');
       target.html(App.Render("manage/views/orders/line", data, {
         accessRight: App.AccessRight,
         currentUserRole: App.User.current.role
       }));
-      if (!this.finished && $('.loading-page').length === 0) {
-        nextPage = page + 1;
-        return this.list.append(App.Render("manage/views/lists/loading_page", nextPage, {
-          page: nextPage
-        }));
+      if (!this.finished) {
+        return this.pagination.appendNextPage(this.list, page);
       }
     };
 
@@ -11940,31 +11926,77 @@
     extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
 
-  window.App.OrdersPaginationController = (function(superClass) {
-    extend(OrdersPaginationController, superClass);
+  window.App.OnDemandPaginationController = (function(superClass) {
+    extend(OnDemandPaginationController, superClass);
 
-    function OrdersPaginationController() {
+    function OnDemandPaginationController() {
+      this.appendNextPage = bind(this.appendNextPage, this);
+      this.showPageError = bind(this.showPageError, this);
+      this.restoreSpinner = bind(this.restoreSpinner, this);
+      this.loadPage = bind(this.loadPage, this);
+      this.retry = bind(this.retry, this);
       this.inview = bind(this.inview, this);
       this.set = bind(this.set, this);
-      return OrdersPaginationController.__super__.constructor.apply(this, arguments);
+      return OnDemandPaginationController.__super__.constructor.apply(this, arguments);
     }
 
-    OrdersPaginationController.prototype.events = {
-      "inview .page:not(.fetched)": "inview"
+    OnDemandPaginationController.prototype.events = {
+      "inview .page:not(.fetched)": "inview",
+      "click .page-load-retry": "retry"
     };
 
-    OrdersPaginationController.prototype.set = function(data) {
+    OnDemandPaginationController.prototype.set = function(data) {
       return this.perPage = data.per_page;
     };
 
-    OrdersPaginationController.prototype.inview = function(e) {
-      var target;
-      target = $(e.currentTarget);
-      target.addClass("fetched");
-      return this.fetch(target.data("page"), target);
+    OnDemandPaginationController.prototype.inview = function(e) {
+      return this.loadPage($(e.currentTarget));
     };
 
-    return OrdersPaginationController;
+    OnDemandPaginationController.prototype.retry = function(e) {
+      e.preventDefault();
+      return this.loadPage($(e.currentTarget).closest(".loading-page"));
+    };
+
+    OnDemandPaginationController.prototype.loadPage = function(target) {
+      var request;
+      this.restoreSpinner(target);
+      target.addClass("fetched");
+      request = this.fetch(target.data("page"), target);
+      if (request != null ? request.fail : void 0) {
+        return request.fail((function(_this) {
+          return function() {
+            return _this.showPageError(target);
+          };
+        })(this));
+      }
+    };
+
+    OnDemandPaginationController.prototype.restoreSpinner = function(target) {
+      var html, page;
+      page = target.data("page");
+      html = App.Render("manage/views/lists/loading_page", page, {
+        page: page
+      });
+      return target.html($(html).html());
+    };
+
+    OnDemandPaginationController.prototype.showPageError = function(target) {
+      return target.html(App.Render("manage/views/lists/page_load_error"));
+    };
+
+    OnDemandPaginationController.prototype.appendNextPage = function(list, page) {
+      var nextPage;
+      if (this.el.find(".loading-page").length) {
+        return;
+      }
+      nextPage = page + 1;
+      return list.append(App.Render("manage/views/lists/loading_page", nextPage, {
+        page: nextPage
+      }));
+    };
+
+    return OnDemandPaginationController;
 
   })(Spine.Controller);
 
@@ -13228,6 +13260,7 @@
 (function($) {$.views.templates("manage/views/lists/loading_page", "<span class=\'page loading-page\' data-page=\'{{> ~page}}\'>\n  <div class=\'height-s\'><\/div>\n  <img class=\'margin-horziontal-auto margin-top-xxl margin-bottom-xxl\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n  <div class=\'height-s\'><\/div>\n<\/span>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/lists/no_results", "<div class=\'height-s\'><\/div>\n<h3 class=\'headline-s light padding-inset-xl text-align-center\'>\n  {{jed \"No entries found\"/}}\n<\/h3>\n<div class=\'height-s\'><\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/lists/page", "<span class=\'page\' data-page=\'{{> ~page}}\'>\n  {{for ~entries}}\n  <div class=\'line\'><\/div>\n  {{/for}}\n<\/span>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/lists/page_load_error", "<div class=\'padding-inset-xl text-align-center\'>\n  <p class=\'paragraph-s\'>{{jed \"The list could not be loaded\"/}}<\/p>\n  <button type=\'button\' class=\'button page-load-retry\'>{{jed \"Try again\"/}}<\/button>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/explorative_add_line", "<div class=\'line row focus-hover-thin{{if availability().maxAvailableForGroups(~startDate, ~endDate, ~groupIds) <= 0}} grayed-out{{/if}}\' data-id=\'{{>id}}\' data-type=\'model\'>\n  <div class=\'col1of10 line-col no-padding text-align-center\'>\n    <div class=\'table\'>\n      <div class=\'table-row\'>\n        <div class=\'table-cell vertical-align-middle\'>\n          <img class=\'max-width-xxs max-height-xxs\' src=\'/models/{{>id}}/image_thumb\'>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    {{if is_package}}\n    <div class=\'grey-text\'>{{jed \'Package\'/}}<\/div>\n    {{/if}}\n    <strong>\n      {{> name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col2of10 line-col no-padding text-align-center\'>\n    <span title=\'{{jed \'Available for borrower\'/}}\'>{{>availability().maxAvailableForGroups(~startDate, ~endDate, ~groupIds)}}<\/span>\n    <span title=\'{{jed \'Available in total\'/}}\'>({{>availability().maxAvailableInTotal(~startDate, ~endDate)}})<\/span>\n    /\n    <span title=\'{{jed \'Borrowable items\'/}}\'>{{>availability().total_rentable}}<\/span>\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-right-s text-align-center\'>\n    <a class=\'button white\' data-type=\'select\'>\n      {{jed \"Select\"/}}\n    <\/a>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/form/accessory_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'hidden\' value=\'0,{{current_inventory_pool_id/}}\'>\n  <label class=\'line-col col1of10 text-align-center no-padding\'>\n    <input autocomplete=\'off\' checked name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'checkbox\' value=\'1,{{current_inventory_pool_id/}}\'>\n  <\/label>\n  <div class=\'line-col col6of10 text-align-left\'>\n    {{>name}}\n    <input name=\'model[accessories_attributes][{{>~uid}}][name]\' type=\'hidden\' value=\'{{>name}}\'>\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/form/allocation_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[partitions_attributes][{{>~uid}}][group_id]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col3of5 text-align-left\' data-name=\'{{>name}}\'>\n    <a class=\'blue\' href=\'{{>url()}}/edit\'>\n      {{>name}}\n    <\/a>\n  <\/div>\n  <div class=\'line-col col1of5 text-align-center\'>\n    <input autocomplete=\'off\' class=\'width-xs small text-align-center\' name=\'model[partitions_attributes][{{>~uid}}][quantity]\' type=\'text\' value=\'1\'>\n  <\/div>\n  <div class=\'line-col col1of5 text-align-right\'>\n    <button class=\'button small inset\' data-remove>{{jed \"Remove\"/}}<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});

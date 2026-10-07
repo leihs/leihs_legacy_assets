@@ -2816,27 +2816,9 @@
     };
 
     ManageBookingCalendar.prototype.getGroupIds = function() {
-      var value;
-      value = this.partitionSelector_el.find("option:selected").data("value");
-      if (value.constructor === Array) {
-        return value.map((function(_this) {
-          return function(v) {
-            if (v.indexOf('[') > -1) {
-              return v.replace('[', '').replace(']', '');
-            } else {
-              return v;
-            }
-          };
-        })(this));
-      } else if (typeof value === 'string') {
-        if (value.indexOf('[') > -1) {
-          return [value.replace('[', '').replace(']', '')];
-        } else {
-          return [value];
-        }
-      } else {
-        return [value];
-      }
+      return this.partitionSelector_el.find("option:selected").attr("data-value").replace(/[\[\]\s]/g, '').split(',').filter(function(id) {
+        return id.length;
+      });
     };
 
     ManageBookingCalendar.prototype.setDayElement = function(date, dayElement, holidays) {
@@ -4092,9 +4074,7 @@
         return function(data, status, xhr) {
           var contracts, datum;
           _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
-          if (data.length === 0) {
-            _this.finished = true;
-          }
+          _this.finished = data.length < _this.pagination.perPage;
           contracts = (function() {
             var i, len, results;
             results = [];
@@ -4168,17 +4148,13 @@
     };
 
     ContractsIndexController.prototype.render = function(target, data, page) {
-      var nextPage;
       target.removeClass('loading-page');
       target.html(App.Render("manage/views/contracts/line", data, {
         accessRight: App.AccessRight,
         currentUserRole: App.User.current.role
       }));
-      if (!this.finished && $('.loading-page').length === 0) {
-        nextPage = page + 1;
-        return this.list.append(App.Render("manage/views/lists/loading_page", nextPage, {
-          page: nextPage
-        }));
+      if (!this.finished) {
+        return this.pagination.appendNextPage(this.list, page);
       }
     };
 
@@ -4784,6 +4760,7 @@
 
     function SearchResultsController() {
       this.render = bind(this.render, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       this._fetch = bind(this._fetch, this);
       this.reset = bind(this.reset, this);
       SearchResultsController.__super__.constructor.apply(this, arguments);
@@ -4792,7 +4769,7 @@
         currentUserRole: App.User.current.role,
         currentInventoryPool: App.InventoryPool.current
       };
-      this.pagination = new App.ListPaginationController({
+      this.pagination = new App.OrdersPaginationController({
         el: this.list,
         fetch: this._fetch
       });
@@ -4801,22 +4778,19 @@
 
     SearchResultsController.prototype.reset = function() {
       this.records = {};
-      this.list.html(App.Render("manage/views/lists/loading"));
-      return this._fetch(1, this.list);
+      this.finished = false;
+      this.list.html(App.Render("manage/views/lists/loading_page", 1, {
+        page: 1
+      }));
+      return this.pagination.loadPage(this.list.find(".loading-page"));
     };
 
     SearchResultsController.prototype._fetch = function(page, target) {
-      var callback;
-      callback = _.after(2, (function(_this) {
-        return function() {
-          return _this.render(target, _this.records[page], page, _this.additionalData);
-        };
-      })(this));
-      return this.fetch(page, target, callback).done((function(_this) {
+      return this.fetchRecords(page).then((function(_this) {
         return function(data, status, xhr) {
-          var datum, records;
+          var datum;
           _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
-          records = (function() {
+          _this.records[page] = (function() {
             var i, len, results;
             results = [];
             for (i = 0, len = data.length; i < len; i++) {
@@ -4825,20 +4799,29 @@
             }
             return results;
           }).call(_this);
-          _this.records[page] = records;
-          return callback();
+          _this.finished = data.length < _this.pagination.perPage;
+          return _this.fetchRelated(_this.records[page]);
+        };
+      })(this)).then((function(_this) {
+        return function() {
+          return _this.render(target, _this.records[page], page);
         };
       })(this));
     };
 
-    SearchResultsController.prototype.render = function(target, data, page, additionalData) {
+    SearchResultsController.prototype.fetchRelated = function() {
+      return $.when();
+    };
+
+    SearchResultsController.prototype.render = function(target, data, page) {
       if (page === 1 && ((data == null) || data.length === 0)) {
-        return target.html(App.Render("manage/views/lists/no_results"));
-      } else {
-        target.html(App.Render(this.templatePath, data, additionalData));
-        if (page === 1) {
-          return this.pagination.renderPlaceholders();
-        }
+        this.list.html(App.Render("manage/views/lists/no_results"));
+        return;
+      }
+      target.removeClass("loading-page");
+      target.html(App.Render(this.templatePath, data, this.additionalData));
+      if (!this.finished) {
+        return this.pagination.appendNextPage(this.list, page);
       }
     };
 
@@ -4862,8 +4845,8 @@
     function SearchResultsContractsController() {
       this.fetchReservations = bind(this.fetchReservations, this);
       this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetchContracts = bind(this.fetchContracts, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       SearchResultsContractsController.__super__.constructor.apply(this, arguments);
       new App.LinesCellTooltipController({
         el: this.el
@@ -4876,33 +4859,20 @@
       });
     }
 
-    SearchResultsContractsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchContracts(page).done((function(_this) {
-        return function(data) {
-          var contracts, datum;
-          contracts = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Contract.find(datum.id));
-            }
-            return results;
-          })();
-          return _this.fetchUsers(contracts).done(function() {
-            return _this.fetchReservations(contracts).done(function() {
-              return callback();
-            });
-          });
+    SearchResultsContractsController.prototype.fetchRelated = function(contracts) {
+      return this.fetchUsers(contracts).then((function(_this) {
+        return function() {
+          return _this.fetchReservations(contracts);
         };
       })(this));
     };
 
-    SearchResultsContractsController.prototype.fetchContracts = function(page) {
+    SearchResultsContractsController.prototype.fetchRecords = function(page) {
       return App.Contract.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
           global_contracts_search: true,
+          disable_total_count: true,
           page: page,
           status: ["open", "closed"]
         })
@@ -4915,11 +4885,7 @@
         return r.user_id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.User.ajaxFetch({
         data: $.param({
@@ -4950,11 +4916,7 @@
         return r.id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.Reservation.ajaxFetch({
         data: $.param({
@@ -4978,8 +4940,8 @@
 
     function SearchResultsItemsController() {
       this.fetchModels = bind(this.fetchModels, this);
-      this.fetchItems = bind(this.fetchItems, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       return SearchResultsItemsController.__super__.constructor.apply(this, arguments);
     }
 
@@ -4991,33 +4953,18 @@
 
     SearchResultsItemsController.prototype.type = "item";
 
-    SearchResultsItemsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchItems(page).done((function(_this) {
-        return function(data) {
-          var datum, items;
-          items = (function() {
-            var j, len, results;
-            results = [];
-            for (j = 0, len = data.length; j < len; j++) {
-              datum = data[j];
-              results.push(App[this.model].find(datum.id));
-            }
-            return results;
-          }).call(_this);
-          return _this.fetchModels(items).done(function() {
-            return callback();
-          });
-        };
-      })(this));
+    SearchResultsItemsController.prototype.fetchRelated = function(items) {
+      return this.fetchModels(items);
     };
 
-    SearchResultsItemsController.prototype.fetchItems = function(page) {
+    SearchResultsItemsController.prototype.fetchRecords = function(page) {
       return App[this.model].ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
           type: this.type,
           page: page,
-          current_inventory_pool: false
+          current_inventory_pool: false,
+          disable_total_count: true
         })
       });
     };
@@ -5028,11 +4975,7 @@
         return i.model_id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App[this.dependingOnModel].ajaxFetch({
         data: $.param({
@@ -5086,40 +5029,25 @@
 
     function SearchResultsModelsController() {
       this.fetchAvailability = bind(this.fetchAvailability, this);
-      this.fetchModels = bind(this.fetchModels, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       SearchResultsModelsController.__super__.constructor.apply(this, arguments);
       new App.TimeLineController({
         el: this.el
       });
     }
 
-    SearchResultsModelsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchModels(page).done((function(_this) {
-        return function(data) {
-          var datum, models;
-          models = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App[this.model].find(datum.id));
-            }
-            return results;
-          }).call(_this);
-          return _this.fetchAvailability(models).done(function() {
-            return callback();
-          });
-        };
-      })(this));
+    SearchResultsModelsController.prototype.fetchRelated = function(models) {
+      return this.fetchAvailability(models);
     };
 
-    SearchResultsModelsController.prototype.fetchModels = function(page) {
+    SearchResultsModelsController.prototype.fetchRecords = function(page) {
       return App[this.model].ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
           type: this.type,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       });
     };
@@ -5130,11 +5058,7 @@
         return m.id;
       });
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.Availability.ajaxFetch({
         url: App.Availability.url() + "/in_stock",
@@ -5162,37 +5086,19 @@
     SearchResultsOptionsController.prototype.templatePath = "manage/views/options/line";
 
     function SearchResultsOptionsController() {
-      this.fetchOptions = bind(this.fetchOptions, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
       SearchResultsOptionsController.__super__.constructor.apply(this, arguments);
       new App.TimeLineController({
         el: this.el
       });
     }
 
-    SearchResultsOptionsController.prototype.fetch = function(page, target, callback) {
-      return this.fetchOptions(page).done((function(_this) {
-        return function(data) {
-          var datum, options;
-          options = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Option.find(datum.id));
-            }
-            return results;
-          })();
-          return callback();
-        };
-      })(this));
-    };
-
-    SearchResultsOptionsController.prototype.fetchOptions = function(page) {
+    SearchResultsOptionsController.prototype.fetchRecords = function(page) {
       return App.Option.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       });
     };
@@ -5217,8 +5123,8 @@
     function SearchResultsOrdersController() {
       this.fetchReservations = bind(this.fetchReservations, this);
       this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetchOrders = bind(this.fetchOrders, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
+      this.fetchRelated = bind(this.fetchRelated, this);
       SearchResultsOrdersController.__super__.constructor.apply(this, arguments);
       new App.LinesCellTooltipController({
         el: this.el
@@ -5236,33 +5142,20 @@
       });
     }
 
-    SearchResultsOrdersController.prototype.fetch = function(page, target, callback) {
-      return this.fetchOrders(page).done((function(_this) {
-        return function(data) {
-          var datum, orders;
-          orders = (function() {
-            var i, len, results;
-            results = [];
-            for (i = 0, len = data.length; i < len; i++) {
-              datum = data[i];
-              results.push(App.Order.find(datum.id));
-            }
-            return results;
-          })();
-          return _this.fetchUsers(orders).done(function() {
-            return _this.fetchReservations(orders).done(function() {
-              return callback();
-            });
-          });
+    SearchResultsOrdersController.prototype.fetchRelated = function(orders) {
+      return this.fetchUsers(orders).then((function(_this) {
+        return function() {
+          return _this.fetchReservations(orders);
         };
       })(this));
     };
 
-    SearchResultsOrdersController.prototype.fetchOrders = function(page) {
+    SearchResultsOrdersController.prototype.fetchRecords = function(page) {
       return App.Order.ajaxFetch({
         data: $.param({
           page: page,
           search_term: this.searchTerm,
+          disable_total_count: true,
           status: ["approved", "submitted", "rejected"]
         })
       });
@@ -5274,11 +5167,7 @@
         return r.user_id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.User.ajaxFetch({
         data: $.param({
@@ -5308,11 +5197,7 @@
         return r.id;
       }));
       if (!ids.length) {
-        return {
-          done: function(c) {
-            return c();
-          }
-        };
+        return $.when();
       }
       return App.Reservation.ajaxFetch({
         data: $.param({
@@ -5361,27 +5246,19 @@
     SearchResultsUsersController.prototype.templatePath = "manage/views/users/search_result_line";
 
     function SearchResultsUsersController() {
-      this.fetchUsers = bind(this.fetchUsers, this);
-      this.fetch = bind(this.fetch, this);
+      this.fetchRecords = bind(this.fetchRecords, this);
       SearchResultsUsersController.__super__.constructor.apply(this, arguments);
       new App.UserCellTooltipController({
         el: this.el
       });
     }
 
-    SearchResultsUsersController.prototype.fetch = function(page, target, callback) {
-      return this.fetchUsers(page).done((function(_this) {
-        return function() {
-          return callback();
-        };
-      })(this));
-    };
-
-    SearchResultsUsersController.prototype.fetchUsers = function(page) {
+    SearchResultsUsersController.prototype.fetchRecords = function(page) {
       return App.User.ajaxFetch({
         data: $.param({
           search_term: this.searchTerm,
-          page: page
+          page: page,
+          disable_total_count: true
         })
       }).done((function(_this) {
         return function(data) {
@@ -9414,9 +9291,7 @@
         return function(data, status, xhr) {
           var datum, orders;
           _this.pagination.set(JSON.parse(xhr.getResponseHeader("X-Pagination")));
-          if (data.length === 0) {
-            _this.finished = true;
-          }
+          _this.finished = data.length < _this.pagination.perPage;
           orders = (function() {
             var i, len, results;
             results = [];
@@ -9490,17 +9365,13 @@
     };
 
     OrdersIndexController.prototype.render = function(target, data, page) {
-      var nextPage;
       target.removeClass('loading-page');
       target.html(App.Render("manage/views/orders/line", data, {
         accessRight: App.AccessRight,
         currentUserRole: App.User.current.role
       }));
-      if (!this.finished && $('.loading-page').length === 0) {
-        nextPage = page + 1;
-        return this.list.append(App.Render("manage/views/lists/loading_page", nextPage, {
-          page: nextPage
-        }));
+      if (!this.finished) {
+        return this.pagination.appendNextPage(this.list, page);
       }
     };
 
@@ -12065,13 +11936,19 @@
     extend(OrdersPaginationController, superClass);
 
     function OrdersPaginationController() {
+      this.appendNextPage = bind(this.appendNextPage, this);
+      this.showPageError = bind(this.showPageError, this);
+      this.restoreSpinner = bind(this.restoreSpinner, this);
+      this.loadPage = bind(this.loadPage, this);
+      this.retry = bind(this.retry, this);
       this.inview = bind(this.inview, this);
       this.set = bind(this.set, this);
       return OrdersPaginationController.__super__.constructor.apply(this, arguments);
     }
 
     OrdersPaginationController.prototype.events = {
-      "inview .page:not(.fetched)": "inview"
+      "inview .page:not(.fetched)": "inview",
+      "click .page-load-retry": "retry"
     };
 
     OrdersPaginationController.prototype.set = function(data) {
@@ -12079,10 +11956,50 @@
     };
 
     OrdersPaginationController.prototype.inview = function(e) {
-      var target;
-      target = $(e.currentTarget);
+      return this.loadPage($(e.currentTarget));
+    };
+
+    OrdersPaginationController.prototype.retry = function(e) {
+      e.preventDefault();
+      return this.loadPage($(e.currentTarget).closest(".loading-page"));
+    };
+
+    OrdersPaginationController.prototype.loadPage = function(target) {
+      var request;
+      this.restoreSpinner(target);
       target.addClass("fetched");
-      return this.fetch(target.data("page"), target);
+      request = this.fetch(target.data("page"), target);
+      if (request != null ? request.fail : void 0) {
+        return request.fail((function(_this) {
+          return function() {
+            return _this.showPageError(target);
+          };
+        })(this));
+      }
+    };
+
+    OrdersPaginationController.prototype.restoreSpinner = function(target) {
+      var html, page;
+      page = target.data("page");
+      html = App.Render("manage/views/lists/loading_page", page, {
+        page: page
+      });
+      return target.html($(html).html());
+    };
+
+    OrdersPaginationController.prototype.showPageError = function(target) {
+      return target.html(App.Render("manage/views/lists/page_load_error"));
+    };
+
+    OrdersPaginationController.prototype.appendNextPage = function(list, page) {
+      var nextPage;
+      if (this.el.find(".loading-page").length) {
+        return;
+      }
+      nextPage = page + 1;
+      return list.append(App.Render("manage/views/lists/loading_page", nextPage, {
+        page: nextPage
+      }));
     };
 
     return OrdersPaginationController;
@@ -13349,6 +13266,7 @@
 (function($) {$.views.templates("manage/views/lists/loading_page", "<span class=\'page loading-page\' data-page=\'{{> ~page}}\'>\n  <div class=\'height-s\'><\/div>\n  <img class=\'margin-horziontal-auto margin-top-xxl margin-bottom-xxl\' src=\'/assets/loading-4eebf3d6e9139e863f2be8c14cad4638df21bf050cea16117739b3431837ee0a.gif\'>\n  <div class=\'height-s\'><\/div>\n<\/span>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/lists/no_results", "<div class=\'height-s\'><\/div>\n<h3 class=\'headline-s light padding-inset-xl text-align-center\'>\n  {{jed \"No entries found\"/}}\n<\/h3>\n<div class=\'height-s\'><\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/lists/page", "<span class=\'page\' data-page=\'{{> ~page}}\'>\n  {{for ~entries}}\n  <div class=\'line\'><\/div>\n  {{/for}}\n<\/span>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
+(function($) {$.views.templates("manage/views/lists/page_load_error", "<div class=\'padding-inset-xl text-align-center\'>\n  <p class=\'paragraph-s\'>{{jed \"The list could not be loaded\"/}}<\/p>\n  <button type=\'button\' class=\'button page-load-retry\'>{{jed \"Try again\"/}}<\/button>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/explorative_add_line", "<div class=\'line row focus-hover-thin{{if availability().maxAvailableForGroups(~startDate, ~endDate, ~groupIds) <= 0}} grayed-out{{/if}}\' data-id=\'{{>id}}\' data-type=\'model\'>\n  <div class=\'col1of10 line-col no-padding text-align-center\'>\n    <div class=\'table\'>\n      <div class=\'table-row\'>\n        <div class=\'table-cell vertical-align-middle\'>\n          <img class=\'max-width-xxs max-height-xxs\' src=\'/models/{{>id}}/image_thumb\'>\n        <\/div>\n      <\/div>\n    <\/div>\n  <\/div>\n  <div class=\'col5of10 line-col text-align-left\'>\n    {{if is_package}}\n    <div class=\'grey-text\'>{{jed \'Package\'/}}<\/div>\n    {{/if}}\n    <strong>\n      {{> name()}}\n    <\/strong>\n  <\/div>\n  <div class=\'col2of10 line-col no-padding text-align-center\'>\n    <span title=\'{{jed \'Available for borrower\'/}}\'>{{>availability().maxAvailableForGroups(~startDate, ~endDate, ~groupIds)}}<\/span>\n    <span title=\'{{jed \'Available in total\'/}}\'>({{>availability().maxAvailableInTotal(~startDate, ~endDate)}})<\/span>\n    /\n    <span title=\'{{jed \'Borrowable items\'/}}\'>{{>availability().total_rentable}}<\/span>\n  <\/div>\n  <div class=\'col2of10 line-col line-actions padding-right-s text-align-center\'>\n    <a class=\'button white\' data-type=\'select\'>\n      {{jed \"Select\"/}}\n    <\/a>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/form/accessory_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'hidden\' value=\'0,{{current_inventory_pool_id/}}\'>\n  <label class=\'line-col col1of10 text-align-center no-padding\'>\n    <input autocomplete=\'off\' checked name=\'model[accessories_attributes][{{>~uid}}][inventory_pool_toggle]\' type=\'checkbox\' value=\'1,{{current_inventory_pool_id/}}\'>\n  <\/label>\n  <div class=\'line-col col6of10 text-align-left\'>\n    {{>name}}\n    <input name=\'model[accessories_attributes][{{>~uid}}][name]\' type=\'hidden\' value=\'{{>name}}\'>\n  <\/div>\n  <div class=\'line-col col3of10 text-align-right\'>\n    <button class=\'button small inset\' data-remove>Remove<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});
 (function($) {$.views.templates("manage/views/models/form/allocation_inline_entry", "<div class=\'row line font-size-xs focus-hover-thin\' data-new data-type=\'inline-entry\'>\n  <input name=\'model[partitions_attributes][{{>~uid}}][group_id]\' type=\'hidden\' value=\'{{>id}}\'>\n  <div class=\'line-col col3of5 text-align-left\' data-name=\'{{>name}}\'>\n    <a class=\'blue\' href=\'{{>url()}}/edit\'>\n      {{>name}}\n    <\/a>\n  <\/div>\n  <div class=\'line-col col1of5 text-align-center\'>\n    <input autocomplete=\'off\' class=\'width-xs small text-align-center\' name=\'model[partitions_attributes][{{>~uid}}][quantity]\' type=\'text\' value=\'1\'>\n  <\/div>\n  <div class=\'line-col col1of5 text-align-right\'>\n    <button class=\'button small inset\' data-remove>{{jed \"Remove\"/}}<\/button>\n  <\/div>\n<\/div>\n");})((typeof jQuery !== "undefined" && jQuery !== null) ? jQuery : {views: jsviews});

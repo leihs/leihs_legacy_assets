@@ -1460,6 +1460,10 @@ window.i18n.locale_data = {
          null,
          "Zueteilige"
       ],
+      "Total price (indicative value)": [
+         null,
+         "Totalprüs (Richtwärt)"
+      ],
       "Total quantity": [
          null,
          "Total Aazahl"
@@ -2649,6 +2653,10 @@ window.i18n.locale_data = {
       "Inventory manager": [
          null,
          "Inventar-Verwalter"
+      ],
+      "New inventory badge": [
+         null,
+         "Neu"
       ],
       "New Delegation": [
          null,
@@ -4015,6 +4023,14 @@ window.i18n.locale_data = {
       "The order has already been dealt with.": [
          null,
          "De Bschtellig isch scho bearbeitet worde."
+      ],
+      "The list could not be loaded": [
+         null,
+         "D Lischte het nöd chöne glade werde"
+      ],
+      "Try again": [
+         null,
+         "Nomal probiere"
       ]
    }
 }
